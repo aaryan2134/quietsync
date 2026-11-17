@@ -13,12 +13,20 @@ const targets = (process.env.RELEASE_TARGETS ?? ALL.join(',')).split(',').filter
 const out = join('release', VERSION)
 const name = `quietsync-${VERSION}`
 const bundle = join(out, name)
+const bunBuildArtifact = /^\.[0-9a-f]+-\d+\.bun-build$/
 
 function run(cmd: string, args: string[]) {
   const r = spawnSync(cmd, args, { stdio: 'inherit' })
   if (r.status !== 0) throw new Error(`${cmd} ${args.join(' ')} failed`)
 }
 
+function removeBunBuildArtifacts() {
+  for (const file of readdirSync('.')) {
+    if (bunBuildArtifact.test(file)) rmSync(file, { force: true })
+  }
+}
+
+removeBunBuildArtifacts()
 rmSync(out, { recursive: true, force: true })
 mkdirSync(out, { recursive: true })
 run('bun', ['run', 'build'])
@@ -39,9 +47,14 @@ for (const f of ['quietsync', 'start-relay']) {
 run('tar', ['-czf', join(out, `${name}.tar.gz`), '-C', out, name])
 
 // Standalone binaries: CLI and relay in one file, no Node or Bun needed.
-for (const t of targets) {
-  const file = join(out, `${name}-${t}${t.startsWith('windows') ? '.exe' : ''}`)
-  run('bun', ['build', 'packages/cli/src/main.ts', '--compile', `--target=bun-${t}`, '--outfile', file])
+try {
+  for (const t of targets) {
+    const file = join(out, `${name}-${t}${t.startsWith('windows') ? '.exe' : ''}`)
+    run('bun', ['build', 'packages/cli/src/main.ts', '--compile', `--target=bun-${t}`, '--outfile', file])
+  }
+} finally {
+  // Bun leaves downloaded target runtimes in the working directory after standalone compilation.
+  removeBunBuildArtifacts()
 }
 
 const sums: string[] = []

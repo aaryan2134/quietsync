@@ -73,7 +73,7 @@ jobs:
           container=$(docker run --detach --publish 127.0.0.1::8787 quietsync-relay:ci)
           trap 'docker logs "$container"; docker rm --force "$container"' EXIT
           port=$(docker port "$container" 8787/tcp | sed 's/.*://')
-          curl --fail --retry 15 --retry-connrefused --retry-delay 1 "http://127.0.0.1:$port/healthz"
+          curl --fail --retry 15 --retry-connrefused --retry-all-errors --retry-delay 1 "http://127.0.0.1:$port/healthz"
 
   # Windows is experimental until the band and hooks are tested there.
   windows-unit:

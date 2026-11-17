@@ -1017,19 +1017,24 @@ export async function runBridge(): Promise<void> {
     res.writeHead(status, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(out) })
     res.end(out)
   })
-  // Unix socket paths are capped around 104 bytes on macOS. If ours doesn't
-  // fit (or can't be created), stay up and say why instead of crashing.
-  const listening = await new Promise<boolean>(resolve => {
-    server.once('error', e => {
-      log(`control socket ${sock}: ${(e as Error).message}`)
-      resolve(false)
-    })
-    server.listen(sock, () => resolve(true))
-  })
+  // Unix socket paths are capped around 104 bytes on macOS. Node versions
+  // disagree on whether an oversized path errors or is silently truncated.
+  const socketPathBytes = Buffer.byteLength(sock)
+  const socketPathTooLong = process.platform === 'darwin' && socketPathBytes > 100
+  if (socketPathTooLong) log(`control socket ${sock}: path is ${socketPathBytes} bytes`)
+  const listening = socketPathTooLong
+    ? false
+    : await new Promise<boolean>(resolve => {
+        server.once('error', e => {
+          log(`control socket ${sock}: ${(e as Error).message}`)
+          resolve(false)
+        })
+        server.listen(sock, () => resolve(true))
+      })
   if (!listening) {
     setupError =
       `quietsync can't open its control socket at ${sock}` +
-      (sock.length > 100 ? ' because the path is too long' : '') +
+      (socketPathBytes > 100 ? ' because the path is too long' : '') +
       '. Ask your human to set QUIETSYNC_RUN_DIR to a short folder (for example ~/.quietsync-run) and restart. Until then quietsync stays off in this session.'
   }
   // /clear and resume give the conversation a new session id, but this bridge

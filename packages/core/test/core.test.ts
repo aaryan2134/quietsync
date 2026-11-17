@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { enc, jpegWithExif, makeZip, pngWithText } from './fixtures.ts'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join, sep } from 'node:path'
 import { stalePending,
   checkRule,
   flowFor,
@@ -862,7 +862,7 @@ describe('review round 2 regressions', () => {
     const g = pathGuard({ home: dir })
     expect(g.classify(link)).toBe('quietsync-secret')
     expect(g.classify('~/.aws/credentials')).toBe('sensitive')
-    expect(g.classify(`${dir}/../${dir.split('/').pop()}/identity.json`)).toBe('quietsync-secret')
+    expect(g.classify(`${dir}${sep}..${sep}${basename(dir)}${sep}identity.json`)).toBe('quietsync-secret')
     const strict = base({ tainted: { by: 'm', linkId: 'L1', at: 0 }, isolation: 'strict' })
     expect(decideToolUse(strict, 'Read', { file_path: '../../etc/hosts' }, ctx).decision).toBe('ask')
   })

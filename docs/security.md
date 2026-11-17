@@ -97,6 +97,7 @@ Paths are resolved before they're judged: `~` is expanded, `..` collapsed, and s
 
 - **Missing hooks.** Organizations can turn off plugin hooks (`allowManagedHooksOnly`), shells can break, platforms differ. The bridge doesn't hand peer text to the model until it has seen its own hooks run in that session; until then messages wait and the band says so.
 - **A bridge that can't answer.** If the bridge errors or doesn't reply within 8 seconds, the hook answers "ask" instead of staying silent (which Claude Code would treat as allow).
+- **No usable control socket.** On macOS the bridge rejects control-socket paths over 100 bytes before listening, rather than relying on Node's version-dependent path handling. If the socket is too long or cannot open, QuietSync stays off in that session and tells the human to set a shorter `QUIETSYNC_RUN_DIR`.
 - **A new session id.** After `/clear` or a resume, hooks find the still-running bridge through the Claude Code process they share, so the gate keeps working.
 - **No ticket, no call.** Gated tools are refused without the hook's ticket; there's no setting to turn that off.
 

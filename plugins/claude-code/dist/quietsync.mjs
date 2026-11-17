@@ -20808,13 +20808,16 @@ ${items.map((n) => n.text).join(`
     }
     let out = JSON.stringify(payload);
     res.writeHead(status, { "content-type": "application/json", "content-length": Buffer.byteLength(out) }), res.end(out);
-  }), listening = await new Promise((resolve) => {
+  }), socketPathBytes = Buffer.byteLength(sock), socketPathTooLong = process.platform === "darwin" && socketPathBytes > 100;
+  if (socketPathTooLong)
+    log(`control socket ${sock}: path is ${socketPathBytes} bytes`);
+  let listening = socketPathTooLong ? !1 : await new Promise((resolve) => {
     server.once("error", (e) => {
       log(`control socket ${sock}: ${e.message}`), resolve(!1);
     }), server.listen(sock, () => resolve(!0));
   });
   if (!listening)
-    setupError = `quietsync can't open its control socket at ${sock}` + (sock.length > 100 ? " because the path is too long" : "") + ". Ask your human to set QUIETSYNC_RUN_DIR to a short folder (for example ~/.quietsync-run) and restart. Until then quietsync stays off in this session.";
+    setupError = `quietsync can't open its control socket at ${sock}` + (socketPathBytes > 100 ? " because the path is too long" : "") + ". Ask your human to set QUIETSYNC_RUN_DIR to a short folder (for example ~/.quietsync-run) and restart. Until then quietsync stays off in this session.";
   let alias = store.path("run", `p${process.ppid}.sock`);
   if (process.platform !== "win32")
     try {

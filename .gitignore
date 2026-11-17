@@ -1,5 +1,6 @@
 node_modules/
 packages/*/dist/
+.*.bun-build
 *.tmp
 *.lock
 !bun.lock

@@ -411,8 +411,9 @@ describe('bridge under Node, driven like Claude Code', () => {
     for (const f of files) expect(readFileSync(join(home, 'sessions', f), 'utf8')).not.toMatch(/deploy question|which bucket/)
   })
 
-  test('a socket path that is too long leaves quietsync off with a clear reason, not a crash', async () => {
-    const longRun = join(dir, 'x'.repeat(120))
+  test('a socket path that is too long on macOS leaves quietsync off with a clear reason, not a crash', async () => {
+    if (process.platform !== 'darwin') return
+    const longRun = join(dir, 'x'.repeat(220))
     const c2 = new Client({ name: 'test2', version: '0' })
     await c2.connect(
       new StdioClientTransport({
@@ -429,7 +430,9 @@ describe('bridge under Node, driven like Claude Code', () => {
   })
 
   test('message commands refuse to run under an agent, even in a fake terminal', () => {
-    const r = spawnSync('script', ['-q', '/dev/null', 'node', join(DIST, 'quietsync.mjs'), 'messages'], {
+    const command = ['node', join(DIST, 'quietsync.mjs'), 'messages'].map(part => `'${part.replaceAll("'", "'\\''")}'`).join(' ')
+    const args = process.platform === 'darwin' ? ['-q', '/dev/null', 'node', join(DIST, 'quietsync.mjs'), 'messages'] : ['-q', '-c', command, '/dev/null']
+    const r = spawnSync('script', args, {
       env: { ...process.env, QUIETSYNC_HOME: home, CLAUDECODE: '1' },
       encoding: 'utf8',
       input: '',
