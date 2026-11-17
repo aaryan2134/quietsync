@@ -1,0 +1,13 @@
+#!/bin/sh
+# quietsync CLI from an unpacked release folder. Needs Node 22+ (the relay needs Bun).
+here=$(cd "$(dirname "$0")" && pwd)
+js="$here/../plugins/claude-code/dist/quietsync.mjs"
+if [ "${1:-}" = relay ]; then
+  command -v bun >/dev/null 2>&1 && exec bun "$js" "$@"
+  echo "quietsync relay needs Bun (https://bun.sh) or the standalone quietsync binary for your platform" >&2
+  exit 1
+fi
+if command -v node >/dev/null 2>&1; then exec node "$js" "$@"; fi
+if command -v bun >/dev/null 2>&1; then exec bun "$js" "$@"; fi
+echo "quietsync needs Node 22+ or Bun" >&2
+exit 1

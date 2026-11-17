@@ -1,0 +1,42 @@
+#!/bin/sh
+# Starts a quietsync relay on this machine plus a temporary public wss://
+# address for it (a Cloudflare quick tunnel), for testing with someone on
+# another network. Ctrl-C stops both. For anything lasting, see docs/relay.md.
+set -eu
+here=$(cd "$(dirname "$0")" && pwd)
+port=${PORT:-8787}
+dir=${QUIETSYNC_RELAY_DIR:-$HOME/.quietsync-relay}
+mkdir -p "$dir"
+chmod 700 "$dir"
+
+if [ -n "${QUIETSYNC_BIN:-}" ]; then run="$QUIETSYNC_BIN"
+elif command -v bun >/dev/null 2>&1; then run="bun $here/../plugins/claude-code/dist/quietsync.mjs"
+else
+  bin=$(ls "$here"/quietsync-*-"$(uname -s | tr A-Z a-z)"-* 2>/dev/null | head -n 1 || true)
+  [ -n "$bin" ] || { echo "needs Bun, or set QUIETSYNC_BIN to the standalone quietsync binary" >&2; exit 1; }
+  run="$bin"
+fi
+command -v cloudflared >/dev/null 2>&1 || { echo "needs cloudflared (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)" >&2; exit 1; }
+
+: > "$dir/tunnel.log"
+cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$port" > "$dir/tunnel.log" 2>&1 &
+tunnel=$!
+trap 'kill $tunnel 2>/dev/null || true' EXIT INT TERM
+url=""
+i=0
+while [ $i -lt 40 ] && [ -z "$url" ]; do
+  url=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$dir/tunnel.log" | head -n 1 || true)
+  i=$((i + 1))
+  [ -n "$url" ] || sleep 1
+done
+[ -n "$url" ] || { echo "the tunnel didn't start; see $dir/tunnel.log" >&2; exit 1; }
+host=${url#https://}
+
+echo
+echo "  relay URL:  wss://$host/v1/ws"
+echo "  health:     $url/healthz"
+echo "  data:       $dir/relay.sqlite"
+echo "  keep this running for the whole test; ctrl-c stops it"
+echo
+# shellcheck disable=SC2086
+$run relay --host 127.0.0.1 --port "$port" --db "$dir/relay.sqlite" --public-host "$host"

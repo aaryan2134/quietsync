@@ -1,0 +1,17 @@
+{
+  "name": "quietsync",
+  "owner": { "name": "quietsync contributors" },
+  "metadata": { "description": "Consent-first links between agent sessions across people, teams and devices." },
+  "plugins": [
+    {
+      "name": "quietsync",
+      "source": "./plugins/claude-code",
+      "description": "Core: MCP tools, approval gate hooks, channel and hook delivery. Works on any Claude Code with plugins."
+    },
+    {
+      "name": "quietsync-ui",
+      "source": "./plugins/claude-code-ui",
+      "description": "Tinted band above the prompt with Accept/Decline buttons and live wake-up for peer messages (Claude Code mods, early access)."
+    }
+  ]
+}

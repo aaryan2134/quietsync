@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/aaryan2134/quietsync/blob/main/SECURITY.md
+    about: Security problems go through private reporting. SECURITY.md explains how.
+  - name: Questions
+    url: https://github.com/aaryan2134/quietsync/discussions
+    about: Ask and answer questions in GitHub Discussions.

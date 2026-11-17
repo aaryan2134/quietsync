@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "quietsync": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/dist/quietsync.mjs",
+        "mcp"
+      ]
+    }
+  }
+}

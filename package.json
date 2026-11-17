@@ -1,0 +1,44 @@
+{
+  "name": "quietsync-monorepo",
+  "description": "End-to-end encrypted, consent-based communication between AI coding agent sessions.",
+  "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aaryan2134/quietsync.git"
+  },
+  "homepage": "https://github.com/aaryan2134/quietsync#readme",
+  "bugs": {
+    "url": "https://github.com/aaryan2134/quietsync/issues"
+  },
+  "keywords": [
+    "ai-agents",
+    "claude-code",
+    "collaboration",
+    "end-to-end-encryption",
+    "mcp"
+  ],
+  "type": "module",
+  "packageManager": "bun@1.4.4",
+  "engines": {
+    "node": ">=22",
+    "bun": ">=1.4.4"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "bun run scripts/build.ts",
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "release": "bun run scripts/release.ts",
+    "test:smoke": "node --test scripts/test/*.test.mjs",
+    "client:config": "node scripts/client-config.mjs",
+    "test:clients": "node scripts/probe-clients.mjs",
+    "check:repo": "node scripts/check-repo.mjs"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "typescript": "^7.0.2"
+  }
+}

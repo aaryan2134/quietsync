@@ -1,0 +1,27 @@
+{
+  "name": "quietsync",
+  "version": "0.4.0-rc.3",
+  "description": "CLI, MCP bridge, hooks and relay launcher for QuietSync.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aaryan2134/quietsync.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/aaryan2134/quietsync#readme",
+  "bugs": {
+    "url": "https://github.com/aaryan2134/quietsync/issues"
+  },
+  "bin": {
+    "quietsync": "dist/quietsync.mjs"
+  },
+  "dependencies": {
+    "@quietsync/core": "workspace:*",
+    "@quietsync/relay": "workspace:*",
+    "@modelcontextprotocol/sdk": "1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

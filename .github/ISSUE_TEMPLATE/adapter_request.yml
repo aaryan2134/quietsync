@@ -1,0 +1,37 @@
+name: Adapter request
+description: Ask for quietsync support in another agent CLI.
+labels: ["adapter"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An adapter needs three things from the agent CLI: a way to add tools (usually MCP), a hook before tool calls that can force a human approval, and a way to get messages into a session. Tell us what this one has.
+  - type: input
+    id: agent
+    attributes:
+      label: Agent CLI and version
+      placeholder: e.g. Codex CLI 0.50
+    validations:
+      required: true
+  - type: input
+    id: docs
+    attributes:
+      label: Link to its extension docs
+      description: Hooks, MCP, plugin or event API docs.
+    validations:
+      required: true
+  - type: checkboxes
+    id: extension-points
+    attributes:
+      label: What it supports
+      options:
+        - label: MCP servers
+        - label: Hooks before tool calls that can block or ask the human
+        - label: Hooks or events on prompt submit or session stop
+        - label: A plugin or event API
+        - label: Custom UI (status line, panel, notifications)
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Gaps you know about, how you'd use it, whether you can help build or test it.

@@ -1,0 +1,51 @@
+name: Bug report
+description: Something in quietsync doesn't work the way the docs say.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Security problem?** Don't file it here. Report it privately, see [SECURITY.md](https://github.com/aaryan2134/quietsync/blob/main/SECURITY.md).
+
+        **Before you paste anything**, strip contact names, keys, invite codes and message text from logs and output.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: And what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: quietsync doctor output
+      description: Run `quietsync doctor` and paste the output. Swap your name for a placeholder if you like.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      placeholder: quietsync 0.1.0, Claude Code 2.1.80, macOS 15
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Optional. Redacted as above.
+      render: text
+  - type: checkboxes
+    id: redacted
+    attributes:
+      label: Redaction
+      options:
+        - label: I removed contact names, keys, invite codes and message text from everything above.
+          required: true

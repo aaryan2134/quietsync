@@ -1,0 +1,84 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  bundle:
+    # macOS so the darwin binaries get the same ad-hoc signature as local builds
+    runs-on: macos-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: .bun-version
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: bun install --frozen-lockfile
+      - name: tag matches version
+        run: test "v$(bun -e "console.log((await import('./packages/cli/src/version.ts')).VERSION)")" = "$GITHUB_REF_NAME"
+      - run: bun run typecheck
+      - run: bun run build
+      - name: built plugin matches the committed one
+        run: git diff --exit-code plugins/claude-code/dist
+      - run: bun test
+      - run: node --test scripts/test/*.test.mjs
+      - run: bun run release
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        if: github.event.repository.private == false
+        with:
+          subject-path: |
+            release/*/quietsync-*.tar.gz
+            release/*/quietsync-*-darwin-*
+            release/*/quietsync-*-linux-*
+            release/*/quietsync-*-windows-*
+      - name: draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=()
+          while IFS= read -r file; do files+=("$file"); done < <(find release -mindepth 2 -maxdepth 2 -type f)
+          flags=(--draft --generate-notes)
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" "${flags[@]}"
+  relay-image:
+    needs: bundle
+    # Non-public repositories build the image in CI without publishing it.
+    if: github.event.repository.private == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: build and publish relay
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_ACTOR: ${{ github.actor }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${REPOSITORY_OWNER,,}/quietsync-relay:$RELEASE_TAG"
+          docker build --file packages/relay/Dockerfile --tag "$image" .
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GH_ACTOR" --password-stdin
+          docker push "$image"
+          docker logout ghcr.io

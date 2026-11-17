@@ -1,0 +1,22 @@
+# Later rules win. Security-sensitive paths are listed in GOVERNANCE.md.
+# Review requirements, including the solo-maintainer stage, are in GOVERNANCE.md.
+
+*                                 @aaryan2134
+
+/packages/core/src/crypto.ts      @aaryan2134
+/packages/core/src/envelope.ts    @aaryan2134
+/packages/core/src/policy.ts      @aaryan2134
+/packages/core/src/sanitize.ts    @aaryan2134
+/packages/core/src/dlp.ts         @aaryan2134
+/packages/core/src/node.ts        @aaryan2134
+/packages/core/src/rules.ts       @aaryan2134
+/packages/core/src/policies.ts    @aaryan2134
+/packages/core/src/guard.ts       @aaryan2134
+/packages/core/src/frame.ts       @aaryan2134
+/packages/core/src/team.ts        @aaryan2134
+/packages/cli/src/bridge.ts       @aaryan2134
+/packages/cli/src/ipc.ts          @aaryan2134
+/packages/cli/assets/hook.sh      @aaryan2134
+/packages/cli/src/hook.ts         @aaryan2134
+/plugins/claude-code/hooks/       @aaryan2134
+/plugins/claude-code-ui/hooks/    @aaryan2134

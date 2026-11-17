@@ -1,0 +1,9 @@
+quietsync
+Copyright 2026 The quietsync authors
+
+This product includes software developed by the quietsync authors and
+contributors (see the git history). Licensed under the Apache License,
+Version 2.0 (see LICENSE).
+
+Third-party code is pulled in as npm dependencies under their own licenses
+(MIT for @noble/*, zod and the MCP SDK); see bun.lock.
