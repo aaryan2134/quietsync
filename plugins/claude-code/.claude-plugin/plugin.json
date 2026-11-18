@@ -1,6 +1,6 @@
 {
   "name": "quietsync",
-  "version": "0.4.0-rc.3",
+  "version": "0.4.0-rc.4",
   "description": "Link your Claude Code session with a teammate's, a contact's, or your own other device's session. Mutual per-session consent, end-to-end encrypted, peer text treated as untrusted, every send approved by you.",
   "author": {
     "name": "quietsync contributors"

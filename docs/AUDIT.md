@@ -49,7 +49,7 @@ peer's agent ──(relay, untrusted)──▶ your node ──notice──▶ y
 
 ## Already found and fixed
 
-Three adversarial reviews are summarized in [CHANGELOG.md](../CHANGELOG.md) under 0.2.0, 0.3.0-rc.1 and 0.4.0-rc.1, and in [test-report.md](test-report.md#security-review-results), each with a regression test in `packages/*/test` (search for "review round 2 regressions"). Re-checking that those fixes hold is a good start.
+Four internal adversarial review rounds are summarized in [CHANGELOG.md](../CHANGELOG.md) and [test-report.md](test-report.md#security-review-results). They were AI-agent reviews, not independent human audits. The separate pre-public Codex review and its scope are recorded in [security-review-2026-11-18.md](security-review-2026-11-18.md). Re-checking those fixes is a good start.
 
 ## Where we'd look next
 

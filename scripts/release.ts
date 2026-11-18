@@ -39,12 +39,18 @@ cpSync('plugins', join(bundle, 'plugins'), { recursive: true, filter: src => !sr
 cpSync('docs', join(bundle, 'docs'), { recursive: true, filter: src => !src.includes(join('docs', 'media')) })
 mkdirSync(join(bundle, 'scripts'), { recursive: true })
 for (const f of ['client-config.mjs', 'probe-clients.mjs']) cpSync(join('scripts', f), join(bundle, 'scripts', f))
-for (const f of ['README.md', 'SETUP.md', 'LICENSE', 'NOTICE', 'CHANGELOG.md', 'SECURITY.md']) cpSync(f, join(bundle, f))
+for (const f of ['README.md', 'SETUP.md', 'LICENSE', 'NOTICE', 'LEGAL.md', 'CHANGELOG.md', 'SECURITY.md']) cpSync(f, join(bundle, f))
+cpSync('plugins/claude-code/dist/THIRD_PARTY_NOTICES.md', join(bundle, 'THIRD_PARTY_NOTICES.md'))
 for (const f of ['quietsync', 'start-relay']) {
   cpSync(join('scripts', 'bundle', f), join(bundle, 'bin', f))
   chmodSync(join(bundle, 'bin', f), 0o755)
 }
 run('tar', ['-czf', join(out, `${name}.tar.gz`), '-C', out, name])
+
+// Standalone binary downloads need the same license and attribution material
+// as the plugin bundle. The release workflow uploads every file in this folder.
+for (const f of ['LICENSE', 'NOTICE', 'LEGAL.md']) cpSync(f, join(out, f))
+cpSync('plugins/claude-code/dist/THIRD_PARTY_NOTICES.md', join(out, 'THIRD_PARTY_NOTICES.md'))
 
 // Standalone binaries: CLI and relay in one file, no Node or Bun needed.
 try {

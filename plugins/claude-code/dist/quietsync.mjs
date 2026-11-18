@@ -15252,9 +15252,9 @@ function resolveTeamState(team, records) {
   let members = [], pending = [], handles = /* @__PURE__ */ new Set;
   for (let m of [...latest.values()].sort((a, b) => (admits.get(a.card.sign)?.at ?? 1 / 0) - (admits.get(b.card.sign)?.at ?? 1 / 0))) {
     let a = admits.get(m.card.sign);
-    if (a && a.handle === m.handle && !handles.has(m.handle))
+    if (a && a.handle === m.handle && a.inviteId === m.cap.inviteId && !handles.has(m.handle))
       members.push(m), handles.add(m.handle);
-    else if (!a)
+    else
       pending.push(m);
   }
   let policy = null;
@@ -20052,7 +20052,7 @@ var INSTRUCTIONS = `quietsync links this session with other people's agent sessi
 ], GATED = /* @__PURE__ */ new Set(["connect", "send", "send_file", "accept", "setup", "join", "invite", "message", "reply", "record"]);
 
 // packages/cli/src/version.ts
-var VERSION = "0.4.0-rc.3";
+var VERSION = "0.4.0-rc.4";
 
 // packages/cli/src/bridge.ts
 var NOTICE_PREFIX = "[quietsync]", CLAIM_WINDOW_MS = 30000;

@@ -16,6 +16,8 @@ Current people and areas are in [MAINTAINERS.md](MAINTAINERS.md).
 
 There is currently one maintainer. Private experimental branches can be prepared and tested by that maintainer; they do not count as independently reviewed. Before a public release, obtain independent review of changes to the security model and record the reviewer and scope. The multi-reviewer merge rules below become enforceable when enough independent reviewers are available. Until then, require CI on `main`, record validation and open review gaps explicitly, and do not describe solo work as satisfying a two-person security review.
 
+The bootstrap review for `v0.4.0-rc.4` is recorded in [docs/security-review-2026-11-18.md](docs/security-review-2026-11-18.md). It was performed by an OpenAI Codex coding agent independently of the Claude-assisted implementation process. It is an AI review, not an external human audit or a two-person approval.
+
 ## Becoming a committer
 
 1. Make sustained, good quality contributions to an area over a few months. Reviews, triage and docs count as much as code.

@@ -4,6 +4,14 @@ Packages follow semver. The protocol version (v1) is separate and only changes t
 
 ## Unreleased
 
+## 0.4.0-rc.4 - 2026-11-18
+
+- Record an independent pre-public Codex security review, with reviewer, scope, limitations and findings; clearly distinguish it from an external human audit.
+- Bind each team admission to the exact invite capability on the admitted membership, with a regression test for replacement memberships.
+- Include `LICENSE`, `NOTICE`, `LEGAL.md` and generated `THIRD_PARTY_NOTICES.md` beside standalone release binaries, inside the plugin bundle and in the relay container.
+- Record the maintainer's publication-rights declaration and consolidate warranty, liability, user-responsibility, third-party and no-endorsement notices without adding use restrictions to Apache-2.0.
+- Label Windows support experimental and untested, and document why rc.4 must be tagged after the repository becomes public to generate provenance and publish the GHCR relay image.
+
 ## 0.4.0-rc.3 - 2026-11-18
 
 - Experimental configuration generator and trial guide for Codex, Gemini CLI and OpenCode using the existing messages-only MCP surface. These are not native hook adapters.

@@ -36,7 +36,7 @@ Slack is turning into an agent workspace, with agents that summarize, prepare me
 ## Where others are stronger
 
 - **Forward secrecy depth.** agent-talk's Olm sessions do a Diffie-Hellman ratchet on every round trip, so they recover after a key compromise. QuietSync's per-link keys and per-message ratchet protect past messages, but not future ones after a live compromise, and the first message on a link (shown to the other human before they accept) is protected only by the recipient's long-term key.
-- **Maturity and reach.** A2A is a 1.0 standard; agent-talk supports six agent CLIs; aweb federates. QuietSync is 0.x, Claude Code only, tested on macOS, and hasn't had an outside security review.
+- **Maturity and reach.** A2A is a 1.0 standard; agent-talk supports six agent CLIs; aweb federates. QuietSync is 0.x, Claude Code only and tested live only on macOS. It has a [recorded independent Codex review](security-review-2026-11-18.md), but no external human security audit.
 - **Coordination features.** Agent Mail has file leases, aweb has tasks and presence, agent teams share a task list. QuietSync only does messaging.
 - **Unattended use.** If you want agents to work through the night without a person, approval on every send is friction. QuietSync allows auto-send, but caps it on purpose.
 - **Identity.** aweb's DNS-rooted identities support rotation. QuietSync copies keys between your own devices and has no rotation yet ([ROADMAP.md](../ROADMAP.md)).

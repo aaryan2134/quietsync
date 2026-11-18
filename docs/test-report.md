@@ -1,6 +1,6 @@
 # QuietSync test report
 
-Last updated 2026-10-29 for 0.4.0-rc.3. Machine: macOS 15 (Darwin 24.6), Apple silicon, Node 24, Bun 1.4.4, Claude Code 2.1.312 signed into a Claude Team plan.
+Last updated 2026-11-18 for 0.4.0-rc.4. Final automated validation used macOS 15.7.3 on Apple silicon, Node 24.12.0 and Bun 1.4.4. Historical UI runs used macOS 15 (Darwin 24.6), Node 24, Bun 1.4.4 and Claude Code 2.1.312 signed into a Claude Team plan.
 
 Watch the [levels video](media/quietsync-levels.mp4) (2 min, 0.4.0-rc.3), the [demo video](media/quietsync-demo.mp4) (3 min) or the [short one](media/quietsync-demo-short.mp4) (2 min, both 0.4.0-rc.1).
 
@@ -8,18 +8,27 @@ Watch the [levels video](media/quietsync-levels.mp4) (2 min, 0.4.0-rc.3), the [d
 
 | check | result |
 |---|---|
-| automated tests | **167 passed, 0 failed** across core, relay end-to-end, bridge and Claude Desktop tests; consecutive full runs green on the final build (see the rc.3 live run below) |
+| automated tests | **176 passed, 0 failed** across core, relay end-to-end, bridge, Claude Desktop and shipped-bundle tests on the final rc.4 build; 8 Node smoke tests also passed |
 | typecheck | clean for the repo and the UI mod |
 | plugin manifests | `claude plugin validate` passes for both plugins and the marketplace |
 | dependency audit | `bun audit`: no vulnerabilities |
 | secret scan | `gitleaks detect`: no leaks |
-| adversarial reviews | 4 independent rounds: 28 findings on links, files and teams (0.2, 0.3), 8 plus 6 on messages that wait (0.4), and a contrarian audit of the whole idea with 21 findings (rc.2); the code findings are fixed with regression tests |
+| internal adversarial reviews | 4 AI-agent rounds: 28 findings on links, files and teams (0.2, 0.3), 8 plus 6 on messages that wait (0.4), and a contrarian audit of the whole idea with 21 findings (rc.2); these were not independent human reviews |
+| independent pre-public review | OpenAI Codex reviewed the rc.3 baseline separately from the Claude-assisted implementation process; one low-severity team-admission binding issue and two informational release/documentation issues were fixed for rc.4; [reviewer, scope and limits](security-review-2026-11-18.md) |
 | UI test in real Claude Code sessions, 0.3 | **40 of 40** messaging steps and **8 of 8** file steps passed (tables at the end) |
 | demo run, 0.4 | messages that wait, a live link and a hijack attempt with made-up people (Bob, Dana, Alice, Carol at "Acme"), recorded as the videos and the screenshots below; it turned up two bugs, both fixed |
 | live run, rc.3 | levels, session-start delivery, a held auto send, a review-mode FYI, a key rotation and the Claude Desktop approval page, in real Claude Code sessions with Bob, Dana and Alice; 636 frames, no leaks; it turned up two bugs, both fixed |
 | performance | link messages p50 5.7 ms, p99 20.5 ms through a relay; gate decision 0.08 ms; hook about 6 ms above bare `sh` startup; what every session loads down from about 2,600 to 1,750 tokens |
 
-Nothing here has had a third-party security audit. See [What this doesn't show](#what-this-doesnt-show).
+Nothing here has had an external human security audit. The recorded Codex review is an independent AI review, not a substitute for one. See [What this doesn't show](#what-this-doesnt-show).
+
+## 0.4.0-rc.4 release validation
+
+The final candidate passed `check:repo`, typecheck, a clean build, all 176 Bun tests and all 8 Node smoke tests. `bun audit` found no vulnerabilities across 119 packages, and gitleaks found no leaks across 20.78 MB.
+
+`bun run release` produced the plugin archive, five platform binaries, `LICENSE`, `NOTICE`, `LEGAL.md`, `THIRD_PARTY_NOTICES.md` and `SHA256SUMS`. Every listed checksum verified, the archive contains all four legal/notice files, and the native Apple-silicon binary reports `0.4.0-rc.4`. A fresh relay container build returned a healthy `/healthz` response and was removed after the check.
+
+The marketplace and core plugin manifests validate with Claude Code's validator. The UI mod and its newer hook schema were previously validated on the tested Claude Code 2.1.312; the older 2.1.167 validator installed during final automation does not understand that schema, so it was not treated as an rc.4 regression.
 
 ## 0.4.0-rc.3 live run
 
@@ -164,7 +173,7 @@ From the 0.4 demo run. Real terminal output, rendered to PNG.
 
 ## Security review results
 
-Two separate adversarial reviews read the code and wrote attack scripts against it.
+The four earlier rounds were internal AI-agent adversarial reviews. They found useful issues, but were not independent human review. The separate 2026-11-18 Codex review is recorded in [its own report](security-review-2026-11-18.md).
 
 **Round 1 (14 findings)**: free-text decline/close reasons usable to leak data, invisible characters hiding data in approved sends, a link request's first message reaching the model before consent, channel turns clearing the peer mark, team invites usable after expiry by backdating, handle squatting, shell guard gaps and unprotected settings files, an unauthenticated control socket claim, auto-accept in every session, tickets minted without a dialog, a mid-turn prompt clearing the peer mark, replayed requests, and stranger DoS. All fixed before this round.
 
@@ -233,10 +242,10 @@ Two separate adversarial reviews read the code and wrote attack scripts against 
 
 ## What this doesn't show
 
-- No third-party audit. Four reviews by AI agents are not a substitute.
+- No external human security audit or penetration test. The internal AI-agent rounds and the independent Codex review are not a substitute.
 - Claude Desktop wasn't driven live; its approval page and messages-only tools ran against a stand-in MCP client and a real browser.
 - Slack, Jira, email and webhook records were tested against a fake server in the tests; only the folder destination ran for real.
-- Linux and Windows weren't tested; only macOS with Claude Code 2.1.312.
+- Linux desktop behavior wasn't tested. Windows support is experimental and its band, hooks and named-pipe paths remain untested; only macOS with Claude Code 2.1.312 was exercised live.
 - The UI runs used the `company` profile on a Team plan; `friends` and `startup` behavior (hidden names, no receipts, verified contacts) is covered by end-to-end tests only.
 - Some messages to the model depend on the model's behavior (U11, U27). It behaved well here; that's evidence, not a guarantee. The controls that don't depend on the model (dialogs, refusals, redaction, holds) are what QuietSync promises.
 - Known limits are listed in [security.md](security.md#known-limits).

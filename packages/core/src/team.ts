@@ -145,10 +145,12 @@ export function resolveTeamState(team: TeamCard, records: TeamRecord[]): TeamSta
   const handles = new Set<string>()
   for (const m of [...latest.values()].sort((a, b) => (admits.get(a.card.sign)?.at ?? Infinity) - (admits.get(b.card.sign)?.at ?? Infinity))) {
     const a = admits.get(m.card.sign)
-    if (a && a.handle === m.handle && !handles.has(m.handle)) {
+    if (a && a.handle === m.handle && a.inviteId === m.cap.inviteId && !handles.has(m.handle)) {
       members.push(m)
       handles.add(m.handle)
-    } else if (!a) pending.push(m)
+    } else {
+      pending.push(m)
+    }
   }
   let policy: TeamPolicy | null = null
   for (const r of records) if (r.kind === 'policy' && verifyTeamPolicy(team, r.p) && (!policy || r.p.at > policy.at)) policy = r.p

@@ -208,6 +208,24 @@ describe('teams', () => {
     expect(admissible(state, records)).toEqual([])
   })
 
+  test('an admission is bound to the membership invite it approved', () => {
+    const { card, key } = createTeam('acme')
+    const bob = createIdentity('bob')
+    const firstCap = issueCap(card, key.priv, 60_000, { now: 1_000 })
+    const secondCap = issueCap(card, key.priv, 60_000, { now: 2_000 })
+    const first = createMembership(bob, card, firstCap, 'bob', { now: 1_001 })
+    const replacement = createMembership(bob, card, secondCap, 'bob', { now: 2_001 })
+    const records: any[] = [
+      { kind: 'member', m: first },
+      { kind: 'admit', a: createAdmission(card, key.priv, first, 1_002) },
+      { kind: 'member', m: replacement },
+    ]
+
+    expect(resolveTeamState(card, records)).toMatchObject({ members: [], pending: [{ cap: { inviteId: secondCap.inviteId } }] })
+    records.push({ kind: 'admit', a: createAdmission(card, key.priv, replacement, 2_002) })
+    expect(resolveTeamState(card, records).members.map(m => m.handle)).toEqual(['bob'])
+  })
+
   test('handles stay unique and caps respect their use count', () => {
     const { card, key } = createTeam('acme')
     const cap = issueCap(card, key.priv, 60_000, { max: 2 })

@@ -152,7 +152,7 @@ The gate runs on every tool call, through a small `sh` hook that forwards to the
 
 Good places to start:
 
-- try it on Linux or Windows and report what breaks (only macOS is tested so far)
+- try it on Linux or experimental Windows support and report what breaks (only macOS is tested live so far)
 - an adapter for Codex CLI, Gemini CLI or opencode ([docs/adapters.md](docs/adapters.md))
 - leak rules for credential formats the scanner misses (`packages/core/src/dlp.ts`, each with a test)
 - try to break it: [docs/AUDIT.md](docs/AUDIT.md) lists what QuietSync claims and where to look
@@ -161,7 +161,7 @@ Issues and PRs welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md); bigger ch
 
 ## Status
 
-0.4 release candidate, early. Works end to end on Claude Code (tested on 2.1.312, macOS); see the [test report](docs/test-report.md). Windows and Linux desktops are untested, and there's been no third-party security audit yet. Known gaps are listed in [docs/security.md](docs/security.md#known-limits).
+0.4 release candidate, early. Works end to end on Claude Code (tested on 2.1.312, macOS); see the [test report](docs/test-report.md). Windows support is experimental and untested, Linux desktop behavior is untested, and there has been no external human security audit. Known gaps are listed in [docs/security.md](docs/security.md#known-limits).
 
 ## License
 

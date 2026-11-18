@@ -146,7 +146,7 @@ Every request, accept, message (in and out, with redactions noted), close, drop 
 - **A hostile relay can withhold team records**, for example a revocation. Run your own relay for anything sensitive.
 - **Device linking copies the identity's private keys** to the new machine, sealed end to end. Per-device keys are on the roadmap.
 - **Org security plugins can skip mod hooks.** The core plugin's command hooks carry the gate; don't run quietsync-ui without QuietSync.
-- **Windows is untested.** The hooks need `sh` (Git for Windows) and Node, and the band doesn't know Windows pipe paths yet. If the hooks can't run, QuietSync holds peer messages rather than delivering them ungated.
+- **Windows support is experimental and untested.** The hooks need `sh` (Git for Windows) and Node, and the band doesn't know Windows pipe paths yet. If the hooks can't run, QuietSync holds peer messages rather than delivering them ungated.
 - **Org detection is a default, not a lock.** It reads Claude Code's login (`~/.claude.json`), which a person can change by signing into another account. For an enforced boundary, push a managed policy with `features.orgOnly` and pinned team ids.
 - **Org tags aren't secret.** A team card's org tag can be copied by someone outside the org, so a fake "company" team could be offered to an employee as an invite. Joining still takes their click on a dialog that names the team; managed policies that pin team ids close this.
 - **Messages that wait have no forward secrecy yet.** Links use throwaway keys per link; a message for someone offline is sealed to their long-term key, like PGP email. Someone who records relay traffic and later steals that person's key can read those messages. Signed prekeys that rotate are on the roadmap.
