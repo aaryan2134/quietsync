@@ -4,13 +4,13 @@ Packages follow semver. The protocol version (v1) is separate and only changes t
 
 ## Unreleased
 
+## 0.4.0-rc.3 - 2026-11-18
+
 - Experimental configuration generator and trial guide for Codex, Gemini CLI and OpenCode using the existing messages-only MCP surface. These are not native hook adapters.
 - Native MCP connection probes, dependency-free shipped-bundle smoke checks and a separate fresh client-validation report.
-- Pin Bun 1.4.4 and workflow actions; narrow release-job permissions; support private-repository validation without publishing a relay image.
+- Pin Bun 1.4.4 and workflow actions, narrow release-job permissions, and keep relay-image publishing disabled for non-public builds.
 - Build the relay container from source and health-check it in CI, instead of depending on ignored build output being present in a clean checkout.
 - Fill maintainer/repository placeholders, ignore local secret/state files, and clarify the solo-maintainer review stage.
-
-## 0.4.0-rc.3 (release candidate, not published)
 
 - **Claude Desktop chat** ([docs/desktop.md](docs/desktop.md)): `quietsync desktop install` adds messages that wait to Claude Desktop. Sends are approved on a page QuietSync opens in your browser, new messages raise a system notification, and what's waiting is in Claude's instructions at startup. Live links stay in Claude Code.
 - **Company copy**: a managed `journal` keeps every message sealed to the company's key, locally and optionally at an https collector; `quietsync journal keygen` and `read`; peers see "their company keeps a copy".
