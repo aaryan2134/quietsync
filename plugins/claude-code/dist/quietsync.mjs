@@ -13311,10 +13311,10 @@ var RULES = [
   { kind: "quietsync invite code", re: /\bqs1_[A-Za-z0-9_-]{40,}/g },
   { kind: "jwt", re: /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g },
   { kind: "auth header", re: /\bauthorization\s*:\s*(?:bearer|basic|token)\s+[A-Za-z0-9._~+/=-]{16,}/gi },
-  { kind: "url with password", re: /\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@]+:[^\s@/]{3,}@[^\s]+/gi },
+  { kind: "url with password", re: /\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@]*:[^\s@/]{3,}@[^\s]+/gi },
   {
     kind: "generic secret",
-    re: /\b(?:api[_-]?key|secret(?:[_-]?key)?|client[_-]?secret|token|passw(?:or)?d|pwd|access[_-]?key|auth[_-]?key|private[_-]?key)\b["']?\s*[:=]\s*["']?[A-Za-z0-9_\-/+=.!@#$%^&*]{12,}["']?/gi
+    re: /(?<![a-z0-9])(?:api[_-]?key|secret(?:[_-]?key)?|client[_-]?secret|token|passw(?:or)?d|pwd|access[_-]?key|auth[_-]?key|private[_-]?key)\b["']?\s*[:=]\s*["']?[A-Za-z0-9_\-/+=.!@#$%^&*]{12,}["']?/gi
   },
   { kind: "card number", re: /\b(?:\d[ -]?){13,19}\b/g, check: luhn },
   { kind: "private address", re: /\b(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b/g, severity: "warn" },
@@ -13364,7 +13364,10 @@ function preview(match) {
   return s.length <= 10 ? "****" : `${s.slice(0, 4)}…${s.slice(-2)}`;
 }
 function b64(s) {
-  return Buffer.from(s, "utf8").toString("base64").replace(/=+$/, "");
+  let encoded = Buffer.from(s, "utf8").toString("base64"), end = encoded.length;
+  while (end > 0 && encoded[end - 1] === "=")
+    end--;
+  return encoded.slice(0, end);
 }
 function canaryForms(value) {
   let forms = /* @__PURE__ */ new Set([value, encodeURIComponent(value), Buffer.from(value, "utf8").toString("hex"), [...value].reverse().join("")]), compact = value.replace(SEPARATORS, "");
@@ -13813,6 +13816,11 @@ var DEFAULT_PROTECT = [
   "!**/.env.example",
   "!**/.env.sample",
   "!**/.env.template",
+  "**/*.env",
+  "**/.envrc",
+  "**/.dev.vars",
+  "**/.dev.vars.*",
+  "/proc/*/environ",
   "**/*.pem",
   "**/*.key",
   "**/*.p12",
@@ -13873,7 +13881,7 @@ var DEFAULT_PROTECT = [
   "~/.codex/config.toml",
   "~/.gemini/settings.json",
   "**/.gemini/settings.json"
-], QUIETSYNC_SECRET_FILES = /* @__PURE__ */ new Set(["identity.json", "invites.json", "pending-pairs.json", "claims.json", "notes.json", "records.json", "rotations.json"]), QUIETSYNC_SECRET_DIRS = ["run", "sessions", "audit", "logs", "journal"], ci = process.platform === "darwin" || process.platform === "win32", slash = (p) => p.replace(/\\/g, "/");
+], QUIETSYNC_SECRET_FILES = /* @__PURE__ */ new Set(["identity.json", "invites.json", "pending-pairs.json", "claims.json", "notes.json", "records.json", "rotations.json", "auto-sends.json"]), QUIETSYNC_SECRET_DIRS = ["run", "sessions", "audit", "logs", "journal"], ci = process.platform === "darwin" || process.platform === "win32", slash = (p) => p.replace(/\\/g, "/");
 function globToRegExp(glob) {
   let g = slash(glob.trim());
   if (g.startsWith("~/") || g === "~")
@@ -14602,7 +14610,7 @@ var READ_ONLY_TOOLS = /* @__PURE__ */ new Set([
   "ListMcpResourcesTool",
   "TaskList",
   "TaskGet"
-]), QUIETSYNC_TOOL = /^mcp__(?:plugin_)?[\w-]*quietsync[\w-]*__quietsync_(\w+)$/;
+]), QUIETSYNC_TOOL = /^mcp__(?:plugin_quietsync_)?quietsync__quietsync_(\w+)$/;
 function quietsyncTool(toolName) {
   return QUIETSYNC_TOOL.exec(toolName)?.[1] ?? null;
 }
@@ -14679,7 +14687,7 @@ function decideTool(view, toolName, input, ctx) {
     if (s.sensitive && linked)
       return ask(`quietsync: a link is open and this command touches ${s.sensitive}. Anything it prints could end up in a reply. Run it?`);
     if (tainted && (iso !== "relaxed" || s.egress))
-      return ask(`quietsync, peer turn (restricted): a message from ${by} started this turn, not you. Approve only if you want this to happen.`);
+      return ask(`quietsync, peer turn (restricted): words from ${by} are in this turn. Approve only if you want this to happen.`);
     if (linked && (iso === "strict" || s.egress))
       return ask(`quietsync: a link is open${iso === "strict" ? " (strict isolation)" : ""} and this command can send data off your machine. Run it?`);
     return NONE2;
@@ -14720,6 +14728,8 @@ function decideTool(view, toolName, input, ctx) {
       return { ...ask(`quietsync: a link is open and this search ${named ? "targets" : "reaches"} protected files. Anything found could end up in a reply. Allow?`), ...peerContent ? { peerContent } : {} };
     if (tainted && iso !== "relaxed" && !insideDir(search.root, ctx.cwd))
       return ask(`quietsync, peer turn (restricted): a message from ${by} is driving this turn and this searches outside the project. Allow?`);
+    if (tainted)
+      return ask(`quietsync, peer turn (restricted): words from ${by} are in this turn, and search results can include protected files even when the pattern looks safe. Allow this search?`);
   }
   let outside = toolPaths(toolName, input).some((p) => !insideDir(p, ctx.cwd)), done = (d) => peerContent ? { ...d, peerContent } : d;
   if (tainted) {
@@ -14727,7 +14737,7 @@ function decideTool(view, toolName, input, ctx) {
       return done(iso === "strict" && outside ? ask(`quietsync, peer turn (restricted): a message from ${by} is driving this turn and this reads outside the project. Allow?`) : NONE2);
     if (iso === "relaxed" && !egressTool(toolName))
       return done(NONE2);
-    return done(ask(`quietsync, peer turn (restricted): a message from ${by} started this turn, not you. Approve only if you want this to happen.`));
+    return done(ask(`quietsync, peer turn (restricted): words from ${by} are in this turn. Approve only if you want this to happen.`));
   }
   if (linked) {
     if (iso === "strict" && !READ_ONLY_TOOLS.has(toolName))
@@ -14744,11 +14754,19 @@ function insideDir(p, dir) {
   let abs = absPath(p, dir), d = absPath(dir).replace(/\/$/, "");
   return abs === d || abs.startsWith(`${d}/`);
 }
-function holdAuto(o, view, peer, policy, ctx) {
+function othersInTurn(view, ids) {
+  if (!view.tainted)
+    return !1;
+  return (view.tainted.ids ?? [`?${view.tainted.by}`]).some((id) => !ids.includes(id));
+}
+function inTurnLine(view) {
+  return view.tainted ? [`! words from ${view.tainted.by} are in this turn: check this is what you want to send`] : [];
+}
+function holdContent(o, view, peers, ctx) {
   if (o.findings.length)
     return "the scanner flagged something";
-  if (view.tainted && view.tainted.by !== peer.label)
-    return `a message from ${view.tainted.by} started this turn`;
+  if (othersInTurn(view, peers.map((p) => p.id)))
+    return "words from someone else are in this turn";
   if (ctx.sensitiveSeen)
     return "your agent read a sensitive file since you last typed";
   if ((o.text.match(/```[\s\S]*?```/g) ?? []).reduce((n, b) => n + b.split(`
@@ -14756,6 +14774,12 @@ function holdAuto(o, view, peer, policy, ctx) {
     return "it carries a lot of code";
   if (o.text.length > 4000)
     return "it's long";
+  return null;
+}
+function holdAuto(o, view, peer, policy, ctx) {
+  let held = holdContent(o, view, [peer], ctx);
+  if (held)
+    return held;
   let sent = ctx.autoSent?.(peer.id) ?? 0;
   if (sent >= policy.autoSendLimit)
     return `${sent} messages to ${peer.label} already went without asking in the last hour`;
@@ -14823,10 +14847,10 @@ function decideQuietSync(view, short, input, ctx) {
       let o = ctx.outbound(targets.map((l) => ({ linkId: l.id })), str(input, "text"));
       if (o.blocked)
         return deny(`quietsync blocked this send: ${o.blocked}`);
-      let auto = targets.every((l) => l.send === "auto"), streak = Math.max(...targets.map((l) => l.autoStreak)), limit = Math.min(...targets.map((l) => l.autoSendLimit)), otherPeer = !!view.tainted && !targets.some((l) => l.peer.label === view.tainted.by);
-      if (auto && streak < limit && !o.findings.length && !otherPeer && !ctx.sensitiveSeen)
+      let auto = targets.every((l) => l.send === "auto"), streak = Math.max(...targets.map((l) => l.autoStreak)), limit = Math.min(...targets.map((l) => l.autoSendLimit)), hourly = auto ? targets.map((l) => ({ link: l, sent: ctx.autoSent?.(l.peer.id) ?? 0 })).find((x) => x.sent >= x.link.autoSendLimit) : void 0, held = auto ? holdContent(o, view, targets.map((l) => l.peer), ctx) ?? (hourly ? `${hourly.sent} messages to ${hourly.link.peer.label} already went without asking in the last hour` : null) : null;
+      if (auto && streak < limit && !held)
         return allow("quietsync: auto-send is on for this link");
-      let head = targets.length > 1 ? `quietsync: send to ${targets.length} people in group ${id}: ${targets.map((l) => l.peer.label).join(", ")}` : `quietsync: send to ${who(targets[0].peer)}`, why = !auto ? "you approve every send" : streak >= limit ? `auto-send paused: ${streak} sends in a row without you` : otherPeer ? `auto-send held: a message from ${view.tainted.by} started this turn` : ctx.sensitiveSeen ? "auto-send held: your agent read a sensitive file since you last typed" : "auto-send held because the scanner flagged something";
+      let head = targets.length > 1 ? `quietsync: send to ${targets.length} people in group ${id}: ${targets.map((l) => l.peer.label).join(", ")}` : `quietsync: send to ${who(targets[0].peer)}`, why = !auto ? "you approve every send" : streak >= limit ? `auto-send paused: ${streak} sends in a row without you` : `auto-send held: ${held}`;
       return ask([
         head,
         `link "${targets[0].topic}", ${why}`,
@@ -14877,7 +14901,7 @@ function decideQuietSync(view, short, input, ctx) {
           ...f.notes.map((n) => `! ${n}`),
           ...warnings.length ? [`! check before approving: ${warnings.map((w) => w.kind).join(", ")}`] : [],
           ...cls === "peer-content" ? ["! this is a file someone else sent you"] : [],
-          ...view.tainted ? [`! a message from ${view.tainted.by} started this turn, not you`] : [],
+          ...inTurnLine(view),
           ...o ? findingLines(o) : [],
           ...o ? [body("note sent with it", o.text)] : []
         ].join(`
@@ -14922,7 +14946,7 @@ function decideQuietSync(view, short, input, ctx) {
         `it waits at the relay if they're offline (up to 7 days); you'll see when it's delivered${question ? ", seen and answered" : " and seen"}`,
         `subject: "${subject.text}"${ticket ? `, ticket ${ticket}` : ""}`,
         `they'll see your name and this session's label "${view.session.label}"`,
-        ...view.tainted ? [`! a message from ${view.tainted.by} started this turn, not you`] : [],
+        ...inTurnLine(view),
         ...findingLines(o),
         ...ctx.touches?.length ? [`your agent looked at: ${ctx.touches.slice(-6).join(", ")}${ctx.touches.length > 6 ? ` (+${ctx.touches.length - 6} more)` : ""}`] : [],
         body("message", o.text)
@@ -14959,7 +14983,7 @@ function decideQuietSync(view, short, input, ctx) {
         `quietsync: answer ${who(n.peer)}`,
         flowLine(hit.policy, "answer", held),
         `their question: ${shownSubject(n)}${n.ticket ? `, ticket ${n.ticket}` : ""}`,
-        ...view.tainted ? [`! a message from ${view.tainted.by} started this turn, not you`] : [],
+        ...inTurnLine(view),
         ...findingLines(o),
         ...ctx.touches?.length ? [`your agent looked at: ${ctx.touches.slice(-6).join(", ")}${ctx.touches.length > 6 ? ` (+${ctx.touches.length - 6} more)` : ""}`] : [],
         body("answer", o.text)
@@ -14977,7 +15001,7 @@ function decideQuietSync(view, short, input, ctx) {
           `quietsync: post a copy of this thread to "${str(input, "to")}" (${r.type})`,
           "this goes to a third place, outside the two of you. Secrets in it block the post.",
           ...r.type === "jira" && r.ticket ? [`${r.ticketBy === "them" ? "! " : ""}comments on ${r.ticket}${r.ticketBy === "them" ? ", a ticket the other person chose" : ""}`] : [],
-          ...view.tainted ? [`! a message from ${view.tainted.by} started this turn, not you`] : [],
+          ...inTurnLine(view),
           body("record", r.text)
         ].join(`
 `)),
@@ -16063,6 +16087,23 @@ class Store {
   updateRecords(fn) {
     return this.update("records.json", {}, fn);
   }
+  autoSendCount(peerId, now = Date.now()) {
+    let cutoff = now - 3600000;
+    return (this.read("auto-sends.json", {})[peerId] ?? []).filter((at) => at > cutoff && at <= now).length;
+  }
+  recordAutoSend(peerId, now = Date.now()) {
+    let cutoff = now - 3600000;
+    this.update("auto-sends.json", {}, (all) => {
+      for (let [id, times] of Object.entries(all)) {
+        let recent = times.filter((at) => at > cutoff && at <= now);
+        if (recent.length)
+          all[id] = recent;
+        else
+          delete all[id];
+      }
+      all[peerId] = [...all[peerId] ?? [], now];
+    });
+  }
   inboxDir() {
     if (process.env.QUIETSYNC_INBOX)
       return process.env.QUIETSYNC_INBOX;
@@ -16123,7 +16164,7 @@ class Store {
 }
 function contactLabel(c, all, teams) {
   let team = c.teams.map((t) => teams[t]?.card.name).find(Boolean), base = c.rel === "team" && c.handle && team ? `${c.handle}@${team}` : c.name;
-  return Object.values(all).some((o) => o.id !== c.id && (o.name === c.name || plainLabel(o, teams) === base)) ? `${base}~${fingerprint(c.id).slice(0, 4)}` : base;
+  return Object.values(all).some((o) => o.id !== c.id && (o.name === c.name || plainLabel(o, teams) === base)) ? `${base}~${fingerprint(c.id).slice(0, 9)}` : base;
 }
 function plainLabel(c, teams) {
   let team = c.teams.map((t) => teams[t]?.card.name).find(Boolean);
@@ -16220,8 +16261,10 @@ function checkDest(d) {
     return https(d.url);
   if (d.type === "jira")
     return https(d.site) ?? (d.email && d.token ? null : "needs an email and an API token");
-  if (d.type === "email")
-    return /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(d.to) ? null : "needs an email address";
+  if (d.type === "email") {
+    let at = d.to.indexOf("@"), domain = d.to.slice(at + 1);
+    return d.to.length <= 254 && at > 0 && at === d.to.lastIndexOf("@") && !/[\s<>"]/.test(d.to) && domain.includes(".") && !domain.startsWith(".") && !domain.endsWith(".") ? null : "needs an email address";
+  }
   return d.dir ? null : "needs a folder";
 }
 var day = (t) => new Date(t).toISOString().slice(0, 16).replace("T", " ");
@@ -16251,6 +16294,8 @@ async function postRecord(name, d, t, dlp, opts = {}) {
   let text = formatThread(t), o = prepareOutbound(text, { mode: "block", allowSecrets: !1, maxChars: 40000, dlp });
   if (o.blocked)
     return { ok: !1, detail: `${name}: not posted, ${o.blocked}` };
+  if (opts.auto && o.findings.length)
+    return { ok: !1, detail: `${name}: not posted automatically, the scanner flagged ${o.findings.map((f) => f.kind).join(", ")}; post it by hand to review it` };
   let f = opts.fetchImpl ?? fetch, post = async (url, body, headers = {}) => {
     if (new URL(url).protocol !== "https:")
       throw Error("must be an https:// URL");
@@ -16566,7 +16611,7 @@ class AgentNode {
         this.peerWakes++;
       if (this.tainted?.linkId !== n.taint.linkId)
         this.store.audit({ event: "turn.peer", by: n.taint.by, link: n.taint.linkId, privilege: "peer", session: this.session.id });
-      this.tainted = { ...n.taint, at: Date.now() }, this.expose(n.taint.by, n.taint.isolation ?? "standard");
+      this.addTaint(n.taint.by, n.taint.linkId, n.taint.isolation, n.taint.id ? [n.taint.id] : []), this.expose(n.taint.by, n.taint.isolation ?? "standard");
     }
   }
   noteHuman() {
@@ -16740,7 +16785,7 @@ class AgentNode {
           flags,
           canReply: policy.caps.send && link.peerCaps.receive,
           group: link.group?.id
-        }), { by: peer.label, linkId: p.linkId, isolation: policy.isolation }), this.emit({ kind: "message", linkId: p.linkId, peer, text, flags, seq: p.seq }), this.policies.features().features.receipts)
+        }), { by: peer.label, id: peer.id, linkId: p.linkId, isolation: policy.isolation }), this.emit({ kind: "message", linkId: p.linkId, peer, text, flags, seq: p.seq }), this.policies.features().features.receipts)
           this.sendTo(contact.card, { t: "link.ack", sid: this.session.id, linkId: p.linkId, seq: p.seq }).catch(() => {});
         return;
       }
@@ -16838,7 +16883,7 @@ class AgentNode {
       return;
     }
     let peer = this.peerView(contact.id);
-    this.notice("request", p.linkId, frameRequest({ peer, requestId: p.linkId, topic, topicFlags: req.topicFlags, hasMessage: !!req.message, group: p.group?.size }), { by: peer.label, linkId: p.linkId }), this.emit({ kind: "request", requestId: p.linkId, peer, topic, message: req.message, flags: [...req.topicFlags, ...req.flags] });
+    this.notice("request", p.linkId, frameRequest({ peer, requestId: p.linkId, topic, topicFlags: req.topicFlags, hasMessage: !!req.message, group: p.group?.size }), { by: peer.label, id: peer.id, linkId: p.linkId }), this.emit({ kind: "request", requestId: p.linkId, peer, topic, message: req.message, flags: [...req.topicFlags, ...req.flags] });
   }
   prepare(targets, text) {
     let policies = targets.map((t) => this.policyFor(t.linkId ? this.links.get(t.linkId)?.peerId ?? "" : t.peerId ?? "")), links = targets.map((t) => t.linkId ? this.links.get(t.linkId) : void 0);
@@ -16947,7 +16992,7 @@ class AgentNode {
         flags: req.flags,
         canReply: policy.caps.send && req.peerCaps.receive,
         group: req.group?.id
-      }), { by: peer.label, linkId: req.id, isolation: policy.isolation }), this.emit({ kind: "message", linkId: req.id, peer, text: req.message, flags: req.flags, seq: 1 });
+      }), { by: peer.label, id: peer.id, linkId: req.id, isolation: policy.isolation }), this.emit({ kind: "message", linkId: req.id, peer, text: req.message, flags: req.flags, seq: 1 });
     return this.linkView(link);
   }
   async decline(requestId, reason = "declined") {
@@ -16979,7 +17024,9 @@ class AgentNode {
       let seq = link.seqOut + 1, r = ratchet(link.sendKey, link.sendIndex, seq), box = boxLinkText(r.mk, link.id, seq, o.text);
       r.mk.fill(0), link.sendKey.fill(0), link.sendKey = r.chain, link.sendIndex = seq;
       let res = await this.sendTo(this.cardFor(link.peerId), { t: "link.msg", sid: this.session.id, linkId: link.id, seq, box });
-      link.seqOut = seq, link.lastActivity = Date.now(), link.autoStreak = opts.auto ? link.autoStreak + 1 : 0, this.store.audit({ dir: "out", event: "message", link: link.id, peer: link.peerId, seq, text: o.text, redacted: o.redacted || void 0, auto: opts.auto || void 0, session: this.session.id }), this.emit({ kind: "sent", linkId: link.id, seq, text: o.text, ...res }), sent.push({ linkId: link.id, peer: this.peerView(link.peerId).label, seq, ...res });
+      if (link.seqOut = seq, link.lastActivity = Date.now(), link.autoStreak = opts.auto ? link.autoStreak + 1 : 0, opts.auto)
+        this.store.recordAutoSend(link.peerId);
+      this.store.audit({ dir: "out", event: "message", link: link.id, peer: link.peerId, seq, text: o.text, redacted: o.redacted || void 0, auto: opts.auto || void 0, session: this.session.id }), this.emit({ kind: "sent", linkId: link.id, seq, text: o.text, ...res }), sent.push({ linkId: link.id, peer: this.peerView(link.peerId).label, seq, ...res });
     }
     return { sent, text: o.text, redacted: o.redacted };
   }
@@ -17063,6 +17110,8 @@ class AgentNode {
     }, all = this.store.updateNotes((n) => {
       n[note.key] = note;
     });
+    if (opts.auto)
+      this.store.recordAutoSend(c.id, now);
     return this.store.audit({ dir: "out", event: "note", note: id, kind: opts.kind, peer: c.id, topic: subject, text: o.text, ticket, redacted: o.redacted || void 0, queued: !res.delivered || void 0, auto: opts.auto || void 0, session: this.session.id }), this.emit({ kind: "note.sent", key: note.key, peer: this.peerView(c.id), noteKind: opts.kind, subject, auto: !!opts.auto, mode: this.policyFor(c.id).mode }), { note: this.noteView(note, all), queued: res.delivered === 0, redacted: o.redacted };
   }
   async replyNote(ref, text, opts = {}) {
@@ -17127,6 +17176,8 @@ class AgentNode {
       if (a)
         advance(a, "answered", now), a.answer = reply.key;
     });
+    if (opts.auto)
+      this.store.recordAutoSend(c.id, now);
     return this.store.audit({ dir: "out", event: "note", note: id, kind: "reply", replyTo: ask.id, peer: c.id, text: o.text, redacted: o.redacted || void 0, auto: opts.auto || void 0, session: this.session.id }), this.emit({ kind: "note.sent", key: reply.key, peer: this.peerView(c.id), noteKind: "reply", subject: ask.subject, auto: !!opts.auto, mode: p.mode }), { note: this.noteView(reply, all), queued: res.delivered === 0, redacted: o.redacted };
   }
   async rotateKeys(opts = {}) {
@@ -17171,7 +17222,7 @@ class AgentNode {
     this.store.audit({ dir: "in", event: "keys.changed", peer: newId, old: oldId, session: this.session.id }), this.notice("closed", `keys:${newId}`, `quietsync: ${peer.label}'s keys changed (a lost device or a rotation). Their links were closed and their mode is back to ask until your human compares safety numbers with \`quietsync verify ${peer.label}\`.`), this.emit({ kind: "keys.changed", peer });
   }
   autoSentCount(peerId, now = Date.now()) {
-    return Object.values(this.store.notes()).filter((n) => n.dir === "out" && n.peerId === peerId && n.auto && now - n.at < 3600000).length;
+    return this.store.autoSendCount(peerId, now);
   }
   applyNote(key) {
     if (!this.applies || this.paused)
@@ -17199,7 +17250,7 @@ class AgentNode {
     }), !won)
       return !1;
     let peer = this.peerView(n.peerId), auto = { mode: policy.mode }, text = n.kind === "reply" && ask ? frameAnswer({ peer, id: ask.id, subject: ask.subject, question: ask.text, text: n.text, flags: n.flags, auto }) : frameNote({ peer, id: n.id, kind: n.kind === "reply" ? "note" : n.kind, subject: n.subject, subjectFlags: n.flags, text: n.text, flags: n.flags, ticket: n.ticket, canReply: policy.caps.send, auto });
-    return this.store.audit({ event: "note.applied", note: n.id, kind: n.kind, peer: n.peerId, mode: policy.mode, privilege: "peer", session: this.session.id }), this.notice("note", key, text, { by: peer.label, linkId: key, isolation: policy.isolation }), this.emit({ kind: "note.applied", key, peer, noteKind: n.kind, subject: n.subject, mode: policy.mode }), !0;
+    return this.store.audit({ event: "note.applied", note: n.id, kind: n.kind, peer: n.peerId, mode: policy.mode, privilege: "peer", session: this.session.id }), this.notice("note", key, text, { by: peer.label, id: peer.id, linkId: key, isolation: policy.isolation }), this.emit({ kind: "note.applied", key, peer, noteKind: n.kind, subject: n.subject, mode: policy.mode }), !0;
   }
   ack(n, state) {
     let c = this.contact(n.peerId);
@@ -17241,10 +17292,14 @@ class AgentNode {
   restoreExposure(e) {
     this.exposure = e;
   }
-  taintFrom(by, key, reason, isolation) {
+  taintFrom(by, key, reason, isolation, ids) {
     if (this.tainted?.linkId !== key)
       this.store.audit({ event: "turn.peer", by, link: key, privilege: "peer", reason, session: this.session.id });
-    this.tainted = { by, linkId: key, at: Date.now(), isolation }, this.expose(by, isolation);
+    this.addTaint(by, key, isolation, ids), this.expose(by, isolation);
+  }
+  addTaint(by, linkId, isolation, ids) {
+    let rank = { relaxed: 0, standard: 1, strict: 2 }, prev = this.tainted, iso = [prev?.isolation, isolation].filter((x) => !!x).reduce((a, b) => a && rank[a] >= rank[b] ? a : b, void 0), all = /* @__PURE__ */ new Set([...prev?.ids ?? [], ...ids.length ? ids : [`?${by}`]]);
+    this.tainted = { by, linkId, at: Date.now(), isolation: iso, ids: [...all] };
   }
   expose(by, isolation) {
     let rank = { relaxed: 0, standard: 1, strict: 2 };
@@ -17262,7 +17317,7 @@ class AgentNode {
     if (!theirs.length)
       return;
     let rank = { relaxed: 0, standard: 1, strict: 2 }, iso = theirs.map((v) => this.policyFor(v.peer.id).isolation).reduce((a, b) => rank[a] >= rank[b] ? a : b);
-    this.taintFrom(theirs.length === 1 ? theirs[0].peer.label : "several people", "messages", "listed messages", iso);
+    this.taintFrom(theirs.length === 1 ? theirs[0].peer.label : "several people", "messages", "listed messages", iso, theirs.map((v) => v.peer.id));
   }
   openNote(ref, opts = {}) {
     let n = this.findNote(ref);
@@ -17282,9 +17337,9 @@ ${n.text}`, !a)
     }
     let isolation = this.policyFor(n.peerId).isolation;
     if (opts.notice)
-      this.notice("note", n.key, text, { by: peer.label, linkId: n.key, isolation });
+      this.notice("note", n.key, text, { by: peer.label, id: peer.id, linkId: n.key, isolation });
     else
-      this.taintFrom(peer.label, n.key, "read a message", isolation);
+      this.taintFrom(peer.label, n.key, "read a message", isolation, [peer.id]);
     return text;
   }
   takeAnswer(ref) {
@@ -17303,7 +17358,7 @@ ${n.text}`, !a)
     });
     let why = isSuspicious(ans.flags) ? "flagged" : fitsBand(ans.text) ? void 0 : "long", isolation = this.policyFor(ask.peerId).isolation;
     if (this.store.audit({ event: "note.continue", note: ask.id, peer: ask.peerId, privilege: why ? "peer" : "human", why, flags: ans.flags.length ? ans.flags : void 0, session: this.session.id }), this.expose(peer.label, isolation), why)
-      this.notice("note", ans.key, text, { by: peer.label, linkId: ans.key, isolation });
+      this.notice("note", ans.key, text, { by: peer.label, id: peer.id, linkId: ans.key, isolation });
     return { text, restricted: !!why, why };
   }
   thread(ref) {
@@ -17479,7 +17534,7 @@ ${n.text}`, !a)
     }
     link.seqIn = p.seq, link.lastActivity = Date.now();
     let peer = this.peerView(contact.id), policy = this.policyFor(contact.id), refuse = (why) => {
-      this.store.audit({ dir: "in", event: "file.refused", link: link.id, peer: contact.id, name: safeFileName(String(meta?.name ?? "")), reason: why, session: this.session.id }), this.notice("message", link.id, `quietsync: ${peer.label} tried to send a file on link ${link.id}, and quietsync refused it: ${why}.`, { by: peer.label, linkId: link.id, isolation: policy.isolation });
+      this.store.audit({ dir: "in", event: "file.refused", link: link.id, peer: contact.id, name: safeFileName(String(meta?.name ?? "")), reason: why, session: this.session.id }), this.notice("message", link.id, `quietsync: ${peer.label} tried to send a file on link ${link.id}, and quietsync refused it: ${why}.`, { by: peer.label, id: peer.id, linkId: link.id, isolation: policy.isolation });
     };
     if (!(meta && typeof meta.fileId === "string" && /^[A-Za-z0-9_-]{4,64}$/.test(meta.fileId) && typeof meta.size === "number" && meta.size >= 0 && typeof meta.sha256 === "string" && /^[0-9a-f]{64}$/.test(meta.sha256) && typeof meta.key === "string" && meta.chunks === Math.max(1, Math.ceil(meta.size / CHUNK_BYTES))))
       return refuse("the offer was malformed");
@@ -17551,7 +17606,7 @@ ${n.text}`, !a)
       note: t.meta.note,
       noteFlags: t.noteFlags,
       canReply: !!link && this.policyFor(t.peerId).caps.send && link.peerCaps.receive
-    }), { by: peer.label, linkId: t.linkId, isolation: this.policyFor(t.peerId).isolation }), this.emit({ kind: "file", linkId: t.linkId, peer, name: record.name, size: data.length, path: dest }), this.policies.features().features.receipts) {
+    }), { by: peer.label, id: peer.id, linkId: t.linkId, isolation: this.policyFor(t.peerId).isolation }), this.emit({ kind: "file", linkId: t.linkId, peer, name: record.name, size: data.length, path: dest }), this.policies.features().features.receipts) {
       let l = this.links.get(t.linkId);
       if (l)
         this.sendTo(this.cardFor(t.peerId), { t: "link.ack", sid: this.session.id, linkId: t.linkId, seq: l.seqIn }).catch(() => {});
@@ -17566,7 +17621,7 @@ ${n.text}`, !a)
   }
   touchPeerContent(path) {
     let owner = this.fileOwner(path), by = owner?.by ?? "a file someone sent", linkId = owner?.linkId ?? "inbox";
-    this.taintFrom(by, linkId, "read a received file", owner ? this.policyFor(owner.peerId).isolation : "strict");
+    this.taintFrom(by, linkId, "read a received file", owner ? this.policyFor(owner.peerId).isolation : "strict", owner ? [owner.peerId] : []);
   }
   async close(id, reason = "done") {
     let targets = this.targets(id);
@@ -20052,7 +20107,7 @@ var INSTRUCTIONS = `quietsync links this session with other people's agent sessi
 ], GATED = /* @__PURE__ */ new Set(["connect", "send", "send_file", "accept", "setup", "join", "invite", "message", "reply", "record"]);
 
 // packages/cli/src/version.ts
-var VERSION = "0.4.0-rc.4";
+var VERSION = "1.0.0";
 
 // packages/cli/src/bridge.ts
 var NOTICE_PREFIX = "[quietsync]", CLAIM_WINDOW_MS = 30000;
@@ -20276,7 +20331,7 @@ ${DESKTOP_INSTRUCTIONS}${desktopWaiting(store)}` : INSTRUCTIONS }), stateFile = 
       }
       if (!thread.answer || thread.ticketBy !== "me" || !node.claimRecord(key, name))
         continue;
-      let r = await postRecord(name, d, thread, node.policies.dlp(), { open: openUrl });
+      let r = await postRecord(name, d, thread, node.policies.dlp(), { open: openUrl, auto: !0 });
       if (!r.ok)
         node.unclaimRecord(key, name);
       else
@@ -20458,6 +20513,10 @@ ${v.outgoing.map((o) => `- ${o.id} to ${o.peer.label} "${o.topic}" (waiting)`).j
           return text(`answer ${r.queued ? `queued for ${r.note.peer.label}` : `sent to ${r.note.peer.label}`}.${r.redacted ? ` ${r.redacted} secret(s) were redacted.` : ""}`);
         }
         case "quietsync_messages": {
+          if (held() === "hooks")
+            return text("quietsync is holding messages until its safety hooks are confirmed in this session. Ask your human to send any message here first.");
+          if (held() === "wakes")
+            return text(`quietsync is holding peer messages: ${node.peerWakes} arrived in a row without your human. Ask them to send any message here to continue.`);
           if (args.message_id) {
             let t = node.openNote(String(args.message_id));
             return persist(), text(t);
@@ -20646,7 +20705,7 @@ They paste it into their Claude (quietsync_join) or run \`quietsync pair <code>\
         node.touchPeerContent(d.peerContent), persist();
       if (!short && body.source === "hook" && d.decision !== "deny") {
         let paths = gateCtx(cwd).paths, cls = toolPaths(tool, body.tool_input).map((x) => paths.classify(x, cwd)), cmd = typeof body.tool_input?.command === "string" ? String(body.tool_input.command) : "";
-        if (cls.some((c) => c === "sensitive" || c === "agent-config") || cmd && checkShell(cmd.replace(/["'\\]/g, ""), store.home).sensitive)
+        if (!!searchTargets(tool, body.tool_input) && !!(node?.links.size || v.tainted || v.exposure) || cls.some((c) => c === "sensitive" || c === "agent-config") || cmd && checkShell(cmd.replace(/["'\\]/g, ""), store.home).sensitive)
           sensitiveSeen = !0;
       }
       if (!short && (node?.links.size || v.tainted || v.exposure) && body.source === "hook") {
@@ -20659,7 +20718,9 @@ They paste it into their Claude (quietsync_join) or run \`quietsync pair <code>\
       return [200, d];
     }
     if (p === "/hook/user-prompt-submit") {
-      let source = typeof body.source === "string" ? body.source : null, prompt = String(body.prompt ?? ""), byHuman = body.mod ? body.human === !0 : source === "user" || source === "sdk";
+      let source = typeof body.source === "string" ? body.source : null, prompt = String(body.prompt ?? ""), humanBandPrompt = prompt.startsWith(`[quietsync:human]
+`), bandPrompt = prompt.startsWith(`[quietsync]
+`), byHuman = humanBandPrompt || !bandPrompt && (body.mod ? body.human === !0 : source === "user" || source === "sdk");
       if (byHuman)
         sensitiveSeen = !1;
       if (byHuman && node) {
@@ -21250,9 +21311,8 @@ async function main(argv) {
       if (steps.push(`profile ${o.profile}: ${PROFILES[o.profile].summary}`), !dry)
         store.updatePolicyFile((f) => ({ ...f, profile: o.profile }));
     }
-    let org = detectOrg();
-    if (org)
-      steps.push(`signed into the ${org.name} plan: you can only link with colleagues in your org's quietsync teams`);
+    if (detectOrg())
+      steps.push("signed into a Team or Enterprise organization: you can only link with colleagues in your org's quietsync teams");
     if (o.join && !dry)
       if (joinKind === "device") {
         let id = await AgentNode.joinDevice(store, o.join, o.device ?? store.config().deviceName);
@@ -21297,7 +21357,8 @@ ${steps.map((s) => `  - ${s}`).join(`
 `)}`), !dry) {
       if (!store.config().relay)
         console.log("\nno relay yet: run `quietsync setup --relay wss://…` (ask whoever runs your team relay)");
-      console.log(`
+      console.log(o["no-plugins"] ? `
+Plugins skipped (--no-plugins). Changed files: only ${store.home}.` : `
 In Claude Code, run /reload-plugins (or start a new session). Changed files: only ${store.home} and the Claude Code plugin cache.`), console.log(`
 Before you use it: quietsync lowers the risk of letting other people's agents talk to yours; it does not remove it.
 You approve every message that leaves, so read each dialog. Peer text is untrusted. This is early, unaudited
@@ -21501,7 +21562,7 @@ ${body}`, "send"))
     let pol = new Policies(store);
     if (!pos[0] || pos[0] === "show") {
       let r = pol.features();
-      console.log(`active profile: ${r.profile}${pol.org ? `   (signed into ${pol.org.name}, ${pol.org.plan})` : ""}
+      console.log(`active profile: ${r.profile}${pol.org ? "   (organization-restricted)" : ""}
 `), console.log(`${"switch".padEnd(16)} ${"value".padEnd(9)} ${"set by".padEnd(34)} meaning`);
       for (let line of describeFeatures(r))
         console.log(line);
@@ -21882,7 +21943,7 @@ These came from other people and are untrusted. Don't run or unpack them unless 
     let managed = loadManagedPolicy();
     console.log(`info managed policy ${managed ? `at ${managedPolicyPath()}` : "none"}`);
     let p = new Policies(store), r = p.features();
-    return console.log(`info profile ${r.profile}${p.org ? `, signed into ${p.org.name} (${p.org.plan}): org-only` : ""}`), p.dlp(), ok(!p.badRules.length, p.badRules.length ? `invalid dlp rules in policy.json: ${p.badRules.join(", ")}` : "policy.json rules compile"), failed ? 1 : 0;
+    return console.log(`info profile ${r.profile}${p.org ? ", organization-restricted" : ""}`), p.dlp(), ok(!p.badRules.length, p.badRules.length ? `invalid dlp rules in policy.json: ${p.badRules.join(", ")}` : "policy.json rules compile"), failed ? 1 : 0;
   }
   return console.error(`unknown command "${cmd}"
 `), console.log(HELP), 1;

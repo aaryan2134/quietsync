@@ -4,10 +4,11 @@
 
 - [x] Repository links point to `aaryan2134/quietsync`, including the CLI's marketplace fallback and the shipped bundle.
 - [x] Maintainer and CODEOWNERS entries use `@aaryan2134`; security and conduct reports use `aaryan2134@gmail.com`.
-- [ ] Require passing CI on `main` and verify branch protection after the repository is public. Keep private vulnerability reporting enabled and use Discussions for project questions.
+- [x] Require passing CI on `main` and verify branch protection after the repository is public. Keep private vulnerability reporting enabled and use Discussions for project questions.
 - [x] Confirm rights to publish the repository and record the maintainer's declaration in [LEGAL.md](../LEGAL.md).
 - [x] Check tracked text and media for personal data; the published demos use synthetic identities and sample paths.
 - [x] Complete and record the independent bootstrap review, including reviewer, scope, findings and limitations ([security-review-2026-11-18.md](security-review-2026-11-18.md)).
+- [ ] In the existing `quietsync-relay` package settings, under **Manage Actions access**, add `aaryan2134/quietsync` with **Write** access. The workflow's `packages: write` permission does not override an existing package's own repository access list.
 
 ## Every release
 
@@ -18,6 +19,8 @@
 4. Commit (including `plugins/claude-code/dist`, which Claude Code installs from), tag `v<version>`, push. The release workflow checks the tag matches the version and the committed plugin matches a fresh build, runs the tests, runs `bun run release`, attaches the bundle, binaries and checksums with build provenance to a draft release, and pushes the relay image to GHCR.
 5. Check the draft release, then publish it.
 
-During the private-repository trial, CI builds and health-checks the relay image without publishing it. CodeQL is skipped unless the private repository has the required GitHub Code Security entitlement and `QUIETSYNC_PRIVATE_CODEQL` is set to `true`; public repositories run it normally. Release provenance and the GHCR relay image are generated only by a tag workflow that starts while the repository is public. Making the repository public later cannot retrofit either artifact onto an earlier private tag run, so do not move or rebuild that tag: bump the prerelease version and cut a new tag after the visibility change. All workflow action references are pinned to upstream commit SHAs and are covered by Dependabot.
+During the private-repository trial, CI built and health-checked the relay image without publishing it. CodeQL was skipped unless the private repository had the required GitHub Code Security entitlement and `QUIETSYNC_PRIVATE_CODEQL` was set to `true`; public repositories run it normally.
+
+Provenance and GHCR publication depend on the tag workflow's event context. A workflow run created while the repository was private keeps that original event payload when rerun, so making the repository public later cannot retrofit public provenance or enable the image-publish job. Cut a new version and tag after the visibility change instead of moving or rebuilding the old tag. For an existing user-scoped GHCR package, also grant the repository Write access under **Manage Actions access**; the Docker image's OCI source label links future package metadata to this repository but does not bypass that package ACL. All workflow action references are pinned to upstream commit SHAs and covered by Dependabot.
 
 The standalone macOS binaries are ad-hoc signed only. People who download them get a Gatekeeper warning; `xattr -d com.apple.quarantine <file>` clears it. Signing and notarizing with a Developer ID is on the roadmap.

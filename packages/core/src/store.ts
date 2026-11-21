@@ -263,6 +263,23 @@ export class Store {
     return this.update('records.json', {}, fn)
   }
 
+  autoSendCount(peerId: string, now = Date.now()): number {
+    const cutoff = now - 3600_000
+    return (this.read<Record<string, number[]>>('auto-sends.json', {})[peerId] ?? []).filter(at => at > cutoff && at <= now).length
+  }
+
+  recordAutoSend(peerId: string, now = Date.now()): void {
+    const cutoff = now - 3600_000
+    this.update<Record<string, number[]>>('auto-sends.json', {}, all => {
+      for (const [id, times] of Object.entries(all)) {
+        const recent = times.filter(at => at > cutoff && at <= now)
+        if (recent.length) all[id] = recent
+        else delete all[id]
+      }
+      all[peerId] = [...(all[peerId] ?? []), now]
+    })
+  }
+
   // Where files from other people land: outside quietsync's own folder so the
   // human can open it, but treated as peer content by the guards.
   inboxDir(): string {
@@ -337,7 +354,7 @@ export function contactLabel(c: Contact, all: Record<string, Contact>, teams: Re
   const team = c.teams.map(t => teams[t]?.card.name).find(Boolean)
   const base = c.rel === 'team' && c.handle && team ? `${c.handle}@${team}` : c.name
   const clash = Object.values(all).some(o => o.id !== c.id && (o.name === c.name || plainLabel(o, teams) === base))
-  return clash ? `${base}~${fingerprint(c.id).slice(0, 4)}` : base
+  return clash ? `${base}~${fingerprint(c.id).slice(0, 9)}` : base
 }
 
 function plainLabel(c: Contact, teams: Record<string, StoredTeam>): string {

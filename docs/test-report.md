@@ -1,6 +1,6 @@
 # QuietSync test report
 
-Last updated 2026-11-18 for 0.4.0-rc.4. Final automated validation used macOS 15.7.3 on Apple silicon, Node 24.12.0 and Bun 1.4.4. Historical UI runs used macOS 15 (Darwin 24.6), Node 24, Bun 1.4.4 and Claude Code 2.1.312 signed into a Claude Team plan.
+Last updated 2026-11-21 for 1.0.0. Final automated validation used macOS 15.7.3 on Apple silicon, Node 26.4.0 and Bun 1.4.4. Historical UI runs used macOS 15 (Darwin 24.6), Node 24, Bun 1.4.4 and Claude Code 2.1.312 signed into a Claude Team plan.
 
 Watch the [levels video](media/quietsync-levels.mp4) (2 min, 0.4.0-rc.3), the [demo video](media/quietsync-demo.mp4) (3 min) or the [short one](media/quietsync-demo-short.mp4) (2 min, both 0.4.0-rc.1).
 
@@ -8,19 +8,27 @@ Watch the [levels video](media/quietsync-levels.mp4) (2 min, 0.4.0-rc.3), the [d
 
 | check | result |
 |---|---|
-| automated tests | **176 passed, 0 failed** across core, relay end-to-end, bridge, Claude Desktop and shipped-bundle tests on the final rc.4 build; 8 Node smoke tests also passed |
+| automated tests | **187 passed, 0 failed** across core, relay end-to-end, bridge, Claude Desktop and shipped-bundle tests on the final 1.0.0 build; 8 Node smoke tests also passed |
 | typecheck | clean for the repo and the UI mod |
-| plugin manifests | `claude plugin validate` passes for both plugins and the marketplace |
+| plugin manifests | the core plugin and marketplace pass `claude plugin validate`; installed Claude Code 2.1.167 does not understand the UI mod's newer schema, already validated and live-tested on 2.1.312 |
 | dependency audit | `bun audit`: no vulnerabilities |
 | secret scan | `gitleaks detect`: no leaks |
 | internal adversarial reviews | 4 AI-agent rounds: 28 findings on links, files and teams (0.2, 0.3), 8 plus 6 on messages that wait (0.4), and a contrarian audit of the whole idea with 21 findings (rc.2); these were not independent human reviews |
-| independent pre-public review | OpenAI Codex reviewed the rc.3 baseline separately from the Claude-assisted implementation process; one low-severity team-admission binding issue and two informational release/documentation issues were fixed for rc.4; [reviewer, scope and limits](security-review-2026-11-18.md) |
+| independent AI reviews | OpenAI Codex separately reviewed the rc.3 baseline for rc.4 and the Claude-produced 1.0 candidate; the new review fixed UI prompt provenance, search gating, relay acknowledgement growth, hourly live-send caps and CodeQL findings; [1.0 reviewer, scope and limits](security-review-2026-11-21.md) |
 | UI test in real Claude Code sessions, 0.3 | **40 of 40** messaging steps and **8 of 8** file steps passed (tables at the end) |
 | demo run, 0.4 | messages that wait, a live link and a hijack attempt with made-up people (Bob, Dana, Alice, Carol at "Acme"), recorded as the videos and the screenshots below; it turned up two bugs, both fixed |
 | live run, rc.3 | levels, session-start delivery, a held auto send, a review-mode FYI, a key rotation and the Claude Desktop approval page, in real Claude Code sessions with Bob, Dana and Alice; 636 frames, no leaks; it turned up two bugs, both fixed |
 | performance | link messages p50 5.7 ms, p99 20.5 ms through a relay; gate decision 0.08 ms; hook about 6 ms above bare `sh` startup; what every session loads down from about 2,600 to 1,750 tokens |
 
-Nothing here has had an external human security audit. The recorded Codex review is an independent AI review, not a substitute for one. See [What this doesn't show](#what-this-doesnt-show).
+Nothing here has had an external human security audit. The recorded Codex reviews are independent AI reviews, not a substitute for one. See [What this doesn't show](#what-this-doesnt-show).
+
+## 1.0.0 release validation
+
+The final candidate passed `check:repo`, typecheck, a clean build, all 187 Bun tests and all 8 Node smoke tests. `bun audit` found no vulnerabilities across 119 packages, and gitleaks found no leaks across 22.36 MB, including the local release outputs.
+
+`bun run release` produced the plugin archive, five platform binaries, `LICENSE`, `NOTICE`, `LEGAL.md`, `THIRD_PARTY_NOTICES.md` and `SHA256SUMS`. Every listed checksum verified, the archive contains all four legal/notice files, and the native Apple-silicon binary reports `1.0.0`. A fresh relay container build returned a healthy `/healthz` response, contained the same four legal/notice files and was removed after the check.
+
+The core plugin and marketplace manifests pass the installed Claude Code 2.1.167 validator. That older validator does not understand the UI mod schema (`types` and module hooks); the schema was previously validated and live-tested on Claude Code 2.1.312, and the 1.0 UI source passes TypeScript checking. GitHub Actions, CodeQL with zero open alerts, build provenance and a successful GHCR push remain required before publishing the draft stable release.
 
 ## 0.4.0-rc.4 release validation
 
@@ -173,7 +181,7 @@ From the 0.4 demo run. Real terminal output, rendered to PNG.
 
 ## Security review results
 
-The four earlier rounds were internal AI-agent adversarial reviews. They found useful issues, but were not independent human review. The separate 2026-11-18 Codex review is recorded in [its own report](security-review-2026-11-18.md).
+The four earlier rounds were internal AI-agent adversarial reviews. They found useful issues, but were not independent human review. Separate Codex reviews are recorded for the [rc.4 bootstrap](security-review-2026-11-18.md) and [1.0 follow-up](security-review-2026-11-21.md).
 
 **Round 1 (14 findings)**: free-text decline/close reasons usable to leak data, invisible characters hiding data in approved sends, a link request's first message reaching the model before consent, channel turns clearing the peer mark, team invites usable after expiry by backdating, handle squatting, shell guard gaps and unprotected settings files, an unauthenticated control socket claim, auto-accept in every session, tickets minted without a dialog, a mid-turn prompt clearing the peer mark, replayed requests, and stranger DoS. All fixed before this round.
 

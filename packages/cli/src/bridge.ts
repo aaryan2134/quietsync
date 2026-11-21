@@ -25,6 +25,7 @@ import {
   waitingSummary,
   answerable,
   messageKind,
+  searchTargets,
   toolPaths,
   checkShell,
   sha256Hex,
@@ -368,7 +369,7 @@ export async function runBridge(): Promise<void> {
         return
       }
       if (!thread.answer || thread.ticketBy !== 'me' || !node.claimRecord(key, name)) continue
-      const r = await postRecord(name, d, thread, node.policies.dlp(), { open: openUrl })
+      const r = await postRecord(name, d, thread, node.policies.dlp(), { open: openUrl, auto: true })
       if (!r.ok) node.unclaimRecord(key, name)
       else store.audit({ event: 'note.recorded', note: key, to: name, auto: true, session: sessionId })
       log(`auto record ${name}: ${r.detail}`)
@@ -599,6 +600,8 @@ export async function runBridge(): Promise<void> {
           return text(`answer ${r.queued ? `queued for ${r.note.peer.label}` : `sent to ${r.note.peer.label}`}.${r.redacted ? ` ${r.redacted} secret(s) were redacted.` : ''}`)
         }
         case 'quietsync_messages': {
+          if (held() === 'hooks') return text('quietsync is holding messages until its safety hooks are confirmed in this session. Ask your human to send any message here first.')
+          if (held() === 'wakes') return text(`quietsync is holding peer messages: ${node.peerWakes} arrived in a row without your human. Ask them to send any message here to continue.`)
           if (args.message_id) {
             const t = node.openNote(String(args.message_id))
             persist()
@@ -826,7 +829,8 @@ export async function runBridge(): Promise<void> {
         const paths = gateCtx(cwd).paths
         const cls = toolPaths(tool, body.tool_input).map(x => paths.classify(x, cwd))
         const cmd = typeof (body.tool_input as Record<string, unknown> | undefined)?.command === 'string' ? String((body.tool_input as Record<string, unknown>).command) : ''
-        if (cls.some(c => c === 'sensitive' || c === 'agent-config') || (cmd && checkShell(cmd.replace(/["'\\]/g, ''), store.home).sensitive)) sensitiveSeen = true
+        const linkedSearch = !!searchTargets(tool, body.tool_input) && !!(node?.links.size || v.tainted || v.exposure)
+        if (linkedSearch || cls.some(c => c === 'sensitive' || c === 'agent-config') || (cmd && checkShell(cmd.replace(/["'\\]/g, ''), store.home).sensitive)) sensitiveSeen = true
       }
       if (!short && (node?.links.size || v.tainted || v.exposure) && body.source === 'hook') {
         const input = (body.tool_input ?? {}) as Record<string, unknown>
@@ -843,7 +847,11 @@ export async function runBridge(): Promise<void> {
       const source = typeof body.source === 'string' ? body.source : null
       const prompt = String(body.prompt ?? '')
       // No source means a Claude Code that doesn't say who typed it: assume it wasn't the human.
-      const byHuman = body.mod ? body.human === true : source === 'user' || source === 'sdk'
+      // The UI band marks prompts it injects; Claude Code may still label those as
+      // "user". Only an explicit Continue click carries the human marker.
+      const humanBandPrompt = prompt.startsWith('[quietsync:human]\n')
+      const bandPrompt = prompt.startsWith('[quietsync]\n')
+      const byHuman = humanBandPrompt || (!bandPrompt && (body.mod ? body.human === true : source === 'user' || source === 'sdk'))
       if (byHuman) sensitiveSeen = false
       if (byHuman && node) {
         node.noteHuman()

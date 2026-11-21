@@ -157,7 +157,18 @@ export function checkDest(d: RecordDest): string | null {
   }
   if (d.type === 'slack' || d.type === 'webhook') return https(d.url)
   if (d.type === 'jira') return https(d.site) ?? (d.email && d.token ? null : 'needs an email and an API token')
-  if (d.type === 'email') return /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(d.to) ? null : 'needs an email address'
+  if (d.type === 'email') {
+    const at = d.to.indexOf('@')
+    const domain = d.to.slice(at + 1)
+    const valid = d.to.length <= 254
+      && at > 0
+      && at === d.to.lastIndexOf('@')
+      && !/[\s<>"]/.test(d.to)
+      && domain.includes('.')
+      && !domain.startsWith('.')
+      && !domain.endsWith('.')
+    return valid ? null : 'needs an email address'
+  }
   return d.dir ? null : 'needs a folder'
 }
 
@@ -189,13 +200,15 @@ function slug(s: string): string {
 
 export type PostResult = { ok: true; detail: string } | { ok: false; detail: string }
 
-export async function postRecord(name: string, d: RecordDest, t: Thread, dlp: DlpOptions, opts: { open?: (url: string) => void; fetchImpl?: typeof fetch } = {}): Promise<PostResult> {
+export async function postRecord(name: string, d: RecordDest, t: Thread, dlp: DlpOptions, opts: { open?: (url: string) => void; fetchImpl?: typeof fetch; auto?: boolean } = {}): Promise<PostResult> {
   const problem = checkDest(d)
   if (problem) return { ok: false, detail: `${name}: ${problem}` }
   const text = formatThread(t)
   // Their answer was scanned on their side; this is ours, before it leaves for a third place.
   const o = prepareOutbound(text, { mode: 'block', allowSecrets: false, maxChars: 40_000, dlp })
   if (o.blocked) return { ok: false, detail: `${name}: not posted, ${o.blocked}` }
+  // Nobody reviews an automatic post, so a warning is enough to hold it.
+  if (opts.auto && o.findings.length) return { ok: false, detail: `${name}: not posted automatically, the scanner flagged ${o.findings.map(f => f.kind).join(', ')}; post it by hand to review it` }
   const f = opts.fetchImpl ?? fetch
   const post = async (url: string, body: unknown, headers: Record<string, string> = {}) => {
     // env: values are only known now, so the https rule is checked again.

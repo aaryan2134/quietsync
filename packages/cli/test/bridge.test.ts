@@ -145,6 +145,7 @@ describe('bridge under Node, driven like Claude Code', () => {
   })
 
   test('pair through an invite the agent makes, link, and the human accepts from the band', async () => {
+    await until(async () => (await ctl('/state')).data.view.relay.connected, 15_000)
     expect(pre(TOOL('invite'), {}).permissionDecision).toBe('ask')
     const inv = await tool('quietsync_invite', {})
     const code = /qs1_[A-Za-z0-9_-]+/.exec(inv.text)![0]
@@ -161,10 +162,11 @@ describe('bridge under Node, driven like Claude Code', () => {
     expect(poll.data.notices.some((n: any) => n.text.includes('which bucket'))).toBe(true)
     await ctl('/delivered', { ids: poll.data.notices.map((n: any) => n.id) }, token)
     expect((await ctl('/state')).data.view.tainted?.by).toBe('bob')
-  })
+  }, 20_000)
 
   test('while bob drives the turn: shell asks, .env is refused, quietsync files are off limits', async () => {
     expect(pre('Bash', { command: 'ls' }).permissionDecision).toBe('ask')
+    expect(pre('Grep', { pattern: 'TODO', path: join(dir, 'src') }).permissionDecision).toBe('ask')
     expect(pre('Read', { file_path: join(dir, '.env') }).permissionDecision).toBe('deny')
     expect(pre('Bash', { command: 'quietsync trust bob --send auto' }).permissionDecision).toBe('deny')
     expect(pre('Edit', { file_path: join(home, 'policy.json') }).permissionDecision).toBe('deny')
@@ -276,6 +278,7 @@ describe('bridge under Node, driven like Claude Code', () => {
     const back = next(bob, 'note')
     expect((await tool('quietsync_reply', args)).error).toBe(false)
     expect((await back).noteKind).toBe('reply')
+    pre(TOOL('messages'), {})
     const list = await tool('quietsync_messages', {})
     expect(list.text).toContain('review')
     expect(list.text).toContain('deploy day')
@@ -298,7 +301,7 @@ describe('bridge under Node, driven like Claude Code', () => {
     expect(after.tainted).toBeNull()
   })
 
-  test('a quietsync tool call without its hook holds peer text again, and a prompt without a source is not the human', async () => {
+  test('a quietsync tool call without its hook holds peer text again, and injected or unsourced prompts are not human', async () => {
     expect((await ctl('/state')).data.hooksAlive).toBe(true)
     await tool('quietsync_status', {})
     expect((await ctl('/state')).data.hooksAlive).toBe(false)
@@ -313,10 +316,31 @@ describe('bridge under Node, driven like Claude Code', () => {
     const handed = (await ctl('/poll')).data.notices.find((x: any) => x.kind === 'note')
     expect((await ctl('/delivered', { ids: [handed.id] }, token)).status).toBe(200)
     expect((await ctl('/state')).data.view.tainted).not.toBeNull()
+    hook('user-prompt-submit', { prompt: '[quietsync]\nschema v2 is final', source: 'user' })
+    hook('stop', {})
+    expect((await ctl('/state')).data.view.tainted).not.toBeNull()
     hook('user-prompt-submit', { prompt: 'no source here' })
     hook('stop', {})
     expect((await ctl('/state')).data.view.tainted).not.toBeNull()
+    hook('user-prompt-submit', { prompt: '[quietsync:human]\ncontinue with the answer', source: 'system' })
+    hook('stop', {})
+    expect((await ctl('/state')).data.view.tainted).toBeNull()
     expect((await ctl('/human/exposure-end', {}, token)).status).toBe(200)
+  })
+
+  test('reading a message by id waits for the hooks too, like the inbox', async () => {
+    await bob.sendNote('alice', { kind: 'note', subject: 'held fyi', text: 'text that must wait' })
+    await until(async () => (await ctl('/poll')).data.notes?.inbox.some((n: any) => n.subject === 'held fyi'))
+    const n = (await ctl('/poll')).data.notes.inbox.find((x: any) => x.subject === 'held fyi')
+    await tool('quietsync_status', {})
+    expect((await ctl('/state')).data.hooksAlive).toBe(false)
+    const one = await tool('quietsync_messages', { message_id: n.id })
+    expect(one.text).toContain('holding messages')
+    expect(one.text).not.toContain('text that must wait')
+    const list = await tool('quietsync_messages', {})
+    expect(list.text).not.toContain('held fyi')
+    pre(TOOL('status'), {})
+    expect((await ctl('/state')).data.hooksAlive).toBe(true)
   })
 
   test("opening a session says what's waiting, even before that session's bridge is up", async () => {
@@ -391,7 +415,7 @@ describe('bridge under Node, driven like Claude Code', () => {
     symlinkSync(sock, join(run, 'b9c0ffee-333.sock'))
     await until(async () => existsSync(join(home, 'run', 'b9c0ffee-333.sock')), 6000)
     expect(existsSync(join(home, 'run', 'b9c0ffee-333.sock'))).toBe(true)
-  })
+  }, 15_000) // up to 3s of hook wait plus the background retry, over bun's 5s default
 
   test('a bridge that is there but does not answer means ask, not allow', () => {
     const dead = join(home, 'run', 'deadbeef0000.sock')

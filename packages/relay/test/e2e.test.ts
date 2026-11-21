@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { Database } from 'bun:sqlite'
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -1173,6 +1174,32 @@ describe('review round 4 regressions', () => {
     expect(c.got).toEqual([])
     await closeAndWait(c.ws)
     out.close()
+  })
+
+  test('the relay ignores acknowledgements for envelopes that were never queued or delivered', async () => {
+    const { b64u, sign, relayAuthBytes } = await import('@quietsync/core')
+    const dir = mkdtempSync(join(tmpdir(), 'quietsync-relay-ack-'))
+    const dbPath = join(dir, 'relay.sqlite')
+    const own = startRelay({ port: 0, dbPath, connectRate: { burst: 10_000, perMinute: 100_000 } })
+    const id = createIdentity('ack-spammer')
+    const host = new URL(own.url).host
+    const ws = new WebSocket(own.url, 'quietsync.v1')
+    await new Promise<void>((resolve, reject) => {
+      ws.onerror = () => reject(new Error('websocket failed'))
+      ws.onmessage = event => {
+        const message = JSON.parse(String(event.data))
+        if (message.t === 'challenge') ws.send(JSON.stringify({ t: 'auth', pub: id.card.sign, sig: b64u(sign(relayAuthBytes(host, message.nonce), id.signing.priv)), ack: true, device: 'ack-device' }))
+        if (message.t === 'ready') resolve()
+      }
+    })
+    ws.send(JSON.stringify({ t: 'ack', ids: Array.from({ length: 500 }, (_, i) => `missing-${i}`) }))
+    await sleep(50)
+    await new Promise<void>(resolve => { ws.onclose = () => resolve(); ws.close() })
+    own.stop()
+    const db = new Database(dbPath, { readonly: true })
+    expect((db.query('SELECT COUNT(*) AS n FROM acked').get() as { n: number }).n).toBe(0)
+    db.close()
+    rmSync(dir, { recursive: true, force: true })
   })
 })
 

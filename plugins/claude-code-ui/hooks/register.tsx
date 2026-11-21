@@ -92,11 +92,11 @@ async function human($: $, action: string, body: Record<string, unknown>) {
   return r
 }
 
-// The human's click hands the answer over; their prompt, not the peer's.
+// The human chooses to hand the answer over, but the marked prompt still carries peer text.
 async function carryOn($: $, key: string) {
   const r = await human($, 'note-continue', { id: key })
   if (r?.restricted) $.ui.toast(`quietsync: ${r.why === 'long' ? 'that answer is longer than the band shows' : 'that answer tripped the injection checks'}, so your agent reads it at peer privilege`)
-  else if (r?.prompt) void $.prompt.submit({ text: `[quietsync]\n${r.prompt}` })
+  else if (r?.prompt) void $.prompt.submit({ text: `[quietsync:human]\n${r.prompt}` })
 }
 
 const STATE_WORD: Record<string, string> = { delivered: 'got', seen: 'saw', declined: 'declined' }
@@ -172,7 +172,7 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('prompt.submit', async ($, e, next) => {
-    if (e.origin.kind === 'composer' || e.origin.kind === 'bridge') void call($, '/hook/user-prompt-submit', { mod: true, human: true })
+    if (e.origin.kind === 'composer') void call($, '/hook/user-prompt-submit', { mod: true, human: true })
     return next(e)
   }).catch(($, e, next) => next(e))
 

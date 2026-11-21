@@ -470,7 +470,7 @@ async function main(argv: string[]): Promise<number> {
       if (!dry) store.updatePolicyFile(f => ({ ...f, profile: o.profile }))
     }
     const org = detectOrg()
-    if (org) steps.push(`signed into the ${org.name} plan: you can only link with colleagues in your org's quietsync teams`)
+    if (org) steps.push("signed into a Team or Enterprise organization: you can only link with colleagues in your org's quietsync teams")
     if (o.join && !dry) {
       if (joinKind === 'device') {
         const id = await AgentNode.joinDevice(store, o.join, o.device ?? store.config().deviceName)
@@ -515,7 +515,11 @@ async function main(argv: string[]): Promise<number> {
     console.log(`${dry ? 'would do' : 'done'}:\n${steps.map(s => `  - ${s}`).join('\n')}`)
     if (!dry) {
       if (!store.config().relay) console.log('\nno relay yet: run `quietsync setup --relay wss://…` (ask whoever runs your team relay)')
-      console.log(`\nIn Claude Code, run /reload-plugins (or start a new session). Changed files: only ${store.home} and the Claude Code plugin cache.`)
+      console.log(
+        o['no-plugins']
+          ? `\nPlugins skipped (--no-plugins). Changed files: only ${store.home}.`
+          : `\nIn Claude Code, run /reload-plugins (or start a new session). Changed files: only ${store.home} and the Claude Code plugin cache.`,
+      )
       console.log(
         '\nBefore you use it: quietsync lowers the risk of letting other people\'s agents talk to yours; it does not remove it.\n' +
           'You approve every message that leaves, so read each dialog. Peer text is untrusted. This is early, unaudited\n' +
@@ -732,7 +736,7 @@ async function main(argv: string[]): Promise<number> {
     const pol = new Policies(store)
     if (!pos[0] || pos[0] === 'show') {
       const r = pol.features()
-      console.log(`active profile: ${r.profile}${pol.org ? `   (signed into ${pol.org.name}, ${pol.org.plan})` : ''}\n`)
+      console.log(`active profile: ${r.profile}${pol.org ? '   (organization-restricted)' : ''}\n`)
       console.log(`${'switch'.padEnd(16)} ${'value'.padEnd(9)} ${'set by'.padEnd(34)} meaning`)
       for (const line of describeFeatures(r)) console.log(line)
       return 0
@@ -1133,7 +1137,7 @@ async function main(argv: string[]): Promise<number> {
     console.log(`info managed policy ${managed ? `at ${managedPolicyPath()}` : 'none'}`)
     const p = new Policies(store)
     const r = p.features()
-    console.log(`info profile ${r.profile}${p.org ? `, signed into ${p.org.name} (${p.org.plan}): org-only` : ''}`)
+    console.log(`info profile ${r.profile}${p.org ? ', organization-restricted' : ''}`)
     p.dlp()
     ok(!p.badRules.length, p.badRules.length ? `invalid dlp rules in policy.json: ${p.badRules.join(', ')}` : 'policy.json rules compile')
     return failed ? 1 : 0

@@ -94,6 +94,7 @@ export function startRelay(opts: RelayOptions = {}): Relay {
     insert: db.prepare('INSERT OR IGNORE INTO queue (id, recipient, sender, env, ts) VALUES (?, ?, ?, ?, ?)'),
     count: db.prepare('SELECT COUNT(*) AS n FROM queue WHERE recipient = ?'),
     countPair: db.prepare('SELECT COUNT(*) AS n FROM queue WHERE recipient = ? AND sender = ?'),
+    has: db.prepare('SELECT 1 AS yes FROM queue WHERE id = ? AND recipient = ?'),
     dirAll: db.prepare("SELECT team, record FROM dir WHERE key LIKE 'admit:%' OR key LIKE 'revoke:%'"),
     dirCount: db.prepare('SELECT COUNT(*) AS n FROM dir WHERE team = ? AND key LIKE ?'),
     take: db.prepare('SELECT id, env FROM queue WHERE recipient = ? ORDER BY ts LIMIT 500'),
@@ -337,6 +338,7 @@ export function startRelay(opts: RelayOptions = {}): Relay {
           const m = inflight.get(c.pub)
           for (const id of ids) {
             if (typeof id !== 'string') continue
+            if (!m?.has(id) && !q.has.get(id, c.pub)) continue
             acked(c.pub, c.device, id)
             m?.delete(id)
           }

@@ -1,6 +1,6 @@
 # Protocol (v1)
 
-What two implementations need to agree on. Source of truth: `packages/core/src`. Changes to anything here go through an [RFC](../rfcs/README.md). v1 is not frozen until 1.0; until then, new optional fields may be added in minor releases and receivers must ignore fields they don't know.
+What two implementations need to agree on. Source of truth: `packages/core/src`. Protocol v1 is stable as of QuietSync 1.0. Changes to anything here go through an [RFC](../rfcs/README.md); incompatible changes require a new protocol version, while receivers continue to ignore unknown optional fields.
 
 ## Encoding
 

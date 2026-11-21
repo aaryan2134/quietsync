@@ -52,7 +52,7 @@ For records, whoever asks for the most detail wins: if your company team keeps f
 `quietsync profile` shows every switch, its value, and which layer set it:
 
 ```
-active profile: company   (signed into Acme, claude_team)
+active profile: company   (organization-restricted)
 
 switch           value     set by                             meaning
 external         false     company (default on org plans)     pair and link with people outside your teams

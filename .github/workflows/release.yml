@@ -78,7 +78,12 @@ jobs:
         run: |
           set -euo pipefail
           image="ghcr.io/${REPOSITORY_OWNER,,}/quietsync-relay:$RELEASE_TAG"
-          docker build --file packages/relay/Dockerfile --tag "$image" .
+          docker build \
+            --file packages/relay/Dockerfile \
+            --build-arg QUIETSYNC_VERSION="$RELEASE_TAG" \
+            --build-arg VCS_REF="$GITHUB_SHA" \
+            --tag "$image" \
+            .
           printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GH_ACTOR" --password-stdin
           docker push "$image"
           docker logout ghcr.io

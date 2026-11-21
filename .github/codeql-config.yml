@@ -1,0 +1,4 @@
+name: QuietSync CodeQL configuration
+
+paths-ignore:
+  - plugins/claude-code/dist

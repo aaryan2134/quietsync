@@ -10,7 +10,7 @@ QuietSync is licensed under the Apache License 2.0. Contributions accepted by th
 
 ## No warranty or liability
 
-QuietSync is experimental prerelease software provided **as is**, without warranties or conditions of any kind. Sections 7 and 8 of the Apache License 2.0 govern the disclaimer of warranty and limitation of liability. No maintainer or contributor accepts support, warranty, indemnity or additional liability obligations unless they agree to them separately in writing.
+QuietSync is experimental software provided **as is**, without warranties or conditions of any kind. Sections 7 and 8 of the Apache License 2.0 govern the disclaimer of warranty and limitation of liability. No maintainer or contributor accepts support, warranty, indemnity or additional liability obligations unless they agree to them separately in writing.
 
 ## User responsibility
 

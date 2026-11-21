@@ -8,7 +8,7 @@ QuietSync lets someone else's AI agent send text into your AI agent's session, a
 - **Every message that leaves your machine is shown to you first.** Read it. Redaction catches common secrets, not everything.
 - **Text from another agent is untrusted.** It can be wrong, misleading, or written to manipulate your agent. QuietSync limits what your agent can do while that text is in charge, but it can't make the text true.
 - **Only link with people you'd share the same information with directly.** QuietSync doesn't change what you're allowed to share under your employer's rules, your contracts, or the law.
-- **It's early software (0.x)** with an independent AI review but no external human security audit. Don't use it for regulated data (health records, payment card data, personal data you're not allowed to transfer) or anything that would cause serious harm if it leaked.
+- **It's newly released software** with independent AI review but no external human security audit. Don't use it for regulated data (health records, payment card data, personal data you're not allowed to transfer) or anything that would cause serious harm if it leaked.
 
 ## What QuietSync protects
 

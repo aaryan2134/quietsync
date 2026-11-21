@@ -49,7 +49,7 @@ export type Notice = {
   text: string
   at: number
   delivered: boolean
-  taint?: { by: string; linkId: string; isolation?: Isolation }
+  taint?: { by: string; id?: string; linkId: string; isolation?: Isolation }
 }
 
 type LinkState = {
@@ -141,7 +141,8 @@ export class AgentNode {
   incoming = new Map<string, IncomingState>()
   outgoing = new Map<string, OutgoingState>()
   notices: Notice[] = []
-  tainted: { by: string; linkId: string; at: number; isolation?: Isolation } | null = null
+  // Who has words in the current turn: `ids` keeps every one of them, `by` the latest.
+  tainted: { by: string; linkId: string; at: number; isolation?: Isolation; ids: string[] } | null = null
   // Someone's message entered this session's context. Until /clear (or the human
   // ends it on the band), tools are gated as if a link with them were open.
   exposure: { by: string; isolation: Isolation; at: number } | null = null
@@ -452,7 +453,7 @@ export class AgentNode {
       if (n.kind === 'message') this.peerWakes++
       // From here until the human takes over, the session runs at peer privilege.
       if (this.tainted?.linkId !== n.taint.linkId) this.store.audit({ event: 'turn.peer', by: n.taint.by, link: n.taint.linkId, privilege: 'peer', session: this.session.id })
-      this.tainted = { ...n.taint, at: Date.now() }
+      this.addTaint(n.taint.by, n.taint.linkId, n.taint.isolation, n.taint.id ? [n.taint.id] : [])
       // Their words stay in the context after the link closes, so the gate outlives it.
       this.expose(n.taint.by, n.taint.isolation ?? 'standard')
     }
@@ -658,7 +659,7 @@ export class AgentNode {
             canReply: policy.caps.send && link.peerCaps.receive,
             group: link.group?.id,
           }),
-          { by: peer.label, linkId: p.linkId, isolation: policy.isolation },
+          { by: peer.label, id: peer.id, linkId: p.linkId, isolation: policy.isolation },
         )
         this.emit({ kind: 'message', linkId: p.linkId, peer, text, flags, seq: p.seq })
         if (this.policies.features().features.receipts) void this.sendTo(contact.card, { t: 'link.ack', sid: this.session.id, linkId: p.linkId, seq: p.seq }).catch(() => {})
@@ -786,7 +787,7 @@ export class AgentNode {
       'request',
       p.linkId,
       frameRequest({ peer, requestId: p.linkId, topic, topicFlags: req.topicFlags, hasMessage: !!req.message, group: p.group?.size }),
-      { by: peer.label, linkId: p.linkId },
+      { by: peer.label, id: peer.id, linkId: p.linkId },
     )
     this.emit({ kind: 'request', requestId: p.linkId, peer, topic, message: req.message, flags: [...req.topicFlags, ...req.flags] })
   }
@@ -914,7 +915,7 @@ export class AgentNode {
           canReply: policy.caps.send && req.peerCaps.receive,
           group: req.group?.id,
         }),
-        { by: peer.label, linkId: req.id, isolation: policy.isolation },
+        { by: peer.label, id: peer.id, linkId: req.id, isolation: policy.isolation },
       )
       this.emit({ kind: 'message', linkId: req.id, peer, text: req.message, flags: req.flags, seq: 1 })
     }
@@ -958,6 +959,7 @@ export class AgentNode {
       link.seqOut = seq
       link.lastActivity = Date.now()
       link.autoStreak = opts.auto ? link.autoStreak + 1 : 0
+      if (opts.auto) this.store.recordAutoSend(link.peerId)
       this.store.audit({ dir: 'out', event: 'message', link: link.id, peer: link.peerId, seq, text: o.text, redacted: o.redacted || undefined, auto: opts.auto || undefined, session: this.session.id })
       this.emit({ kind: 'sent', linkId: link.id, seq, text: o.text, ...res })
       sent.push({ linkId: link.id, peer: this.peerView(link.peerId).label, seq, ...res })
@@ -1052,6 +1054,7 @@ export class AgentNode {
     const all = this.store.updateNotes(n => {
       n[note.key] = note
     })
+    if (opts.auto) this.store.recordAutoSend(c.id, now)
     this.store.audit({ dir: 'out', event: 'note', note: id, kind: opts.kind, peer: c.id, topic: subject, text: o.text, ticket, redacted: o.redacted || undefined, queued: !res.delivered || undefined, auto: opts.auto || undefined, session: this.session.id })
     this.emit({ kind: 'note.sent', key: note.key, peer: this.peerView(c.id), noteKind: opts.kind, subject, auto: !!opts.auto, mode: this.policyFor(c.id).mode })
     return { note: this.noteView(note, all), queued: res.delivered === 0, redacted: o.redacted }
@@ -1118,6 +1121,7 @@ export class AgentNode {
         a.answer = reply.key
       }
     })
+    if (opts.auto) this.store.recordAutoSend(c.id, now)
     this.store.audit({ dir: 'out', event: 'note', note: id, kind: 'reply', replyTo: ask.id, peer: c.id, text: o.text, redacted: o.redacted || undefined, auto: opts.auto || undefined, session: this.session.id })
     this.emit({ kind: 'note.sent', key: reply.key, peer: this.peerView(c.id), noteKind: 'reply', subject: ask.subject, auto: !!opts.auto, mode: p.mode })
     return { note: this.noteView(reply, all), queued: res.delivered === 0, redacted: o.redacted }
@@ -1182,7 +1186,7 @@ export class AgentNode {
 
   // Messages to this person that went without a dialog in the last hour.
   autoSentCount(peerId: string, now = Date.now()): number {
-    return Object.values(this.store.notes()).filter(n => n.dir === 'out' && n.peerId === peerId && n.auto && now - n.at < 3600_000).length
+    return this.store.autoSendCount(peerId, now)
   }
 
   // A message this person's mode lets through goes to the agent on its own, once,
@@ -1215,7 +1219,7 @@ export class AgentNode {
         ? frameAnswer({ peer, id: ask.id, subject: ask.subject, question: ask.text, text: n.text, flags: n.flags, auto })
         : frameNote({ peer, id: n.id, kind: n.kind === 'reply' ? 'note' : n.kind, subject: n.subject, subjectFlags: n.flags, text: n.text, flags: n.flags, ticket: n.ticket, canReply: policy.caps.send, auto })
     this.store.audit({ event: 'note.applied', note: n.id, kind: n.kind, peer: n.peerId, mode: policy.mode, privilege: 'peer', session: this.session.id })
-    this.notice('note', key, text, { by: peer.label, linkId: key, isolation: policy.isolation })
+    this.notice('note', key, text, { by: peer.label, id: peer.id, linkId: key, isolation: policy.isolation })
     this.emit({ kind: 'note.applied', key, peer, noteKind: n.kind, subject: n.subject, mode: policy.mode })
     return true
   }
@@ -1261,10 +1265,21 @@ export class AgentNode {
   }
 
   // Someone else's words entering this session: the turn runs at peer privilege.
-  private taintFrom(by: string, key: string, reason: string, isolation: Isolation) {
+  private taintFrom(by: string, key: string, reason: string, isolation: Isolation, ids: string[]) {
     if (this.tainted?.linkId !== key) this.store.audit({ event: 'turn.peer', by, link: key, privilege: 'peer', reason, session: this.session.id })
-    this.tainted = { by, linkId: key, at: Date.now(), isolation }
+    this.addTaint(by, key, isolation, ids)
     this.expose(by, isolation)
+  }
+
+  // Adds to the turn's taint rather than replacing it, so text from an earlier
+  // peer still counts after a later one speaks. No ids means a source quietsync
+  // couldn't tie to a key, which never matches anyone.
+  private addTaint(by: string, linkId: string, isolation: Isolation | undefined, ids: string[]) {
+    const rank = { relaxed: 0, standard: 1, strict: 2 } as const
+    const prev = this.tainted
+    const iso = [prev?.isolation, isolation].filter((x): x is Isolation => !!x).reduce<Isolation | undefined>((a, b) => (a && rank[a] >= rank[b] ? a : b), undefined)
+    const all = new Set([...(prev?.ids ?? []), ...(ids.length ? ids : [`?${by}`])])
+    this.tainted = { by, linkId, at: Date.now(), isolation: iso, ids: [...all] }
   }
 
   private expose(by: string, isolation: Isolation) {
@@ -1284,7 +1299,7 @@ export class AgentNode {
     if (!theirs.length) return
     const rank = { relaxed: 0, standard: 1, strict: 2 } as const
     const iso = theirs.map(v => this.policyFor(v.peer.id).isolation).reduce((a, b) => (rank[a] >= rank[b] ? a : b))
-    this.taintFrom(theirs.length === 1 ? theirs[0]!.peer.label : 'several people', 'messages', 'listed messages', iso)
+    this.taintFrom(theirs.length === 1 ? theirs[0]!.peer.label : 'several people', 'messages', 'listed messages', iso, theirs.map(v => v.peer.id))
   }
 
   // The human asked their agent to look at a message: hand it over as peer text.
@@ -1308,8 +1323,8 @@ export class AgentNode {
       this.markNotesSeen([n.key])
     }
     const isolation = this.policyFor(n.peerId).isolation
-    if (opts.notice) this.notice('note', n.key, text, { by: peer.label, linkId: n.key, isolation })
-    else this.taintFrom(peer.label, n.key, 'read a message', isolation)
+    if (opts.notice) this.notice('note', n.key, text, { by: peer.label, id: peer.id, linkId: n.key, isolation })
+    else this.taintFrom(peer.label, n.key, 'read a message', isolation, [peer.id])
     return text
   }
 
@@ -1332,7 +1347,7 @@ export class AgentNode {
     const isolation = this.policyFor(ask.peerId).isolation
     this.store.audit({ event: 'note.continue', note: ask.id, peer: ask.peerId, privilege: why ? 'peer' : 'human', why, flags: ans.flags.length ? ans.flags : undefined, session: this.session.id })
     this.expose(peer.label, isolation)
-    if (why) this.notice('note', ans.key, text, { by: peer.label, linkId: ans.key, isolation })
+    if (why) this.notice('note', ans.key, text, { by: peer.label, id: peer.id, linkId: ans.key, isolation })
     return { text, restricted: !!why, why }
   }
 
@@ -1558,7 +1573,7 @@ export class AgentNode {
     const policy = this.policyFor(contact.id)
     const refuse = (why: string) => {
       this.store.audit({ dir: 'in', event: 'file.refused', link: link.id, peer: contact.id, name: safeFileName(String(meta?.name ?? '')), reason: why, session: this.session.id })
-      this.notice('message', link.id, `quietsync: ${peer.label} tried to send a file on link ${link.id}, and quietsync refused it: ${why}.`, { by: peer.label, linkId: link.id, isolation: policy.isolation })
+      this.notice('message', link.id, `quietsync: ${peer.label} tried to send a file on link ${link.id}, and quietsync refused it: ${why}.`, { by: peer.label, id: peer.id, linkId: link.id, isolation: policy.isolation })
     }
     const ok =
       meta && typeof meta.fileId === 'string' && /^[A-Za-z0-9_-]{4,64}$/.test(meta.fileId) && typeof meta.size === 'number' && meta.size >= 0 &&
@@ -1646,7 +1661,7 @@ export class AgentNode {
         noteFlags: t.noteFlags,
         canReply: !!link && this.policyFor(t.peerId).caps.send && link.peerCaps.receive,
       }),
-      { by: peer.label, linkId: t.linkId, isolation: this.policyFor(t.peerId).isolation },
+      { by: peer.label, id: peer.id, linkId: t.linkId, isolation: this.policyFor(t.peerId).isolation },
     )
     this.emit({ kind: 'file', linkId: t.linkId, peer, name: record.name, size: data.length, path: dest })
     if (this.policies.features().features.receipts) {
@@ -1671,7 +1686,7 @@ export class AgentNode {
     const owner = this.fileOwner(path)
     const by = owner?.by ?? 'a file someone sent'
     const linkId = owner?.linkId ?? 'inbox'
-    this.taintFrom(by, linkId, 'read a received file', owner ? this.policyFor(owner.peerId).isolation : 'strict')
+    this.taintFrom(by, linkId, 'read a received file', owner ? this.policyFor(owner.peerId).isolation : 'strict', owner ? [owner.peerId] : [])
   }
 
   async close(id: string, reason: Reason = 'done'): Promise<void> {

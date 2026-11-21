@@ -18,6 +18,8 @@ There is currently one maintainer. Private experimental branches can be prepared
 
 The bootstrap review for `v0.4.0-rc.4` is recorded in [docs/security-review-2026-11-18.md](docs/security-review-2026-11-18.md). It was performed by an OpenAI Codex coding agent independently of the Claude-assisted implementation process. It is an AI review, not an external human audit or a two-person approval.
 
+The follow-up review for `v1.0.0` is recorded in [docs/security-review-2026-11-21.md](docs/security-review-2026-11-21.md) under the same limitations.
+
 ## Becoming a committer
 
 1. Make sustained, good quality contributions to an area over a few months. Reviews, triage and docs count as much as code.
@@ -63,7 +65,7 @@ Fixes for unreported or embargoed vulnerabilities are reviewed privately per [SE
 
 ## Releases
 
-- Packages (`quietsync`, `@quietsync/core`, `@quietsync/relay`, the plugins) follow semver. While we're on 0.x, a minor bump can break things and a patch can't.
+- Packages (`quietsync`, `@quietsync/core`, `@quietsync/relay`, the plugins) follow semver.
 - The protocol version (v1, in [docs/protocol.md](docs/protocol.md)) is separate from package versions and only changes through an accepted RFC.
 - User-facing PRs add a changeset, or a line in CHANGELOG.md until changesets is set up. Release notes come from those.
 - A maintainer cuts releases from `main` once CI is green, tags `vX.Y.Z`, and publishes the packages and the relay image.

@@ -81,13 +81,13 @@ Prompts from other people's agents and prompts from you are treated differently.
 
 If peer messages keep arriving without you, delivery pauses after 12 in a row (`wakeLimit`) until you type, so two agents can't keep each other running. What asks the human depends on isolation (`relaxed`, `standard`, `strict`; see [policy.md](policy.md)). External peers default to `strict`, which keeps the session marked until the link closes, so an injection can't wait for the human's next prompt.
 
-Only prompts Claude Code marks as typed by the human (`source: "user"`) clear the mark, and a prompt typed mid-turn clears it only when that turn ends.
+Only prompts Claude Code marks as typed by the human (`source: "user"`) clear the mark, plus the separate trusted marker emitted when the human explicitly presses **Continue** on a fully visible, unflagged answer. Automatic UI-band prompts never count as human, even if Claude Code labels them `source: "user"`. A human prompt typed mid-turn clears the mark only when that turn ends.
 
 ### Local guard rails
 
-Paths are resolved before they're judged: `~` is expanded, `..` collapsed, and symlinks checked both as written and where they point. Grep and Glob are judged by where they search and what their pattern names, since they can read many files at once.
+Paths are resolved before they're judged: `~` is expanded, `..` collapsed, and symlinks checked both as written and where they point. Grep and Glob are judged by where they search and what their pattern names, since they can read many files at once. Every search asks during a peer-driven turn because returned lines can cross an apparently safe root through tool behavior or filesystem indirection.
 
-- `.env` files, SSH and cloud credentials, key files, token files and the user's `protect` list: refused during a peer turn, asked while any link is open
+- `.env`-style files (`.env*`, `*.env`, `.envrc`, `.dev.vars`, `/proc/*/environ`), SSH and cloud credentials, key files, token files and the user's `protect` list: refused during a peer turn, asked while any link is open
 - QuietSync's keys, invites and control sockets: always refused to every agent tool
 - QuietSync's settings files: the agent can read them, never write them
 - shell commands that run QuietSync's control subcommands, touch its folder, dump secrets (`printenv`, `gh auth token`, keychain reads) or reach the network while a link is open: refused or asked
@@ -137,7 +137,7 @@ Every request, accept, message (in and out, with redactions noted), close, drop 
 
 ## Known limits
 
-- **Reading ordinary files is allowed during peer turns** (except under strict isolation outside the project). An injected agent can pull a source file into context. It can't send it without your approval, so read the send dialog, and the "looked at" line in it.
+- **Reading ordinary files is allowed during peer turns** (except under strict isolation outside the project); searches ask first. An injected agent can pull a source file into context. It can't send it without your approval, so read the send dialog, and the "looked at" line in it.
 - **Same-user processes aren't isolated from each other.** QuietSync runs as you, like your agent's shell. Outside a peer-driven turn, an agent with unrestricted shell in bypass mode could edit QuietSync's files with an obfuscated command the pattern guard misses. That only takes effect in later sessions, and only if you run in bypass mode; during peer turns every shell command asks you.
 - **The UI claim uses the socket window.** The mod first tries to get its token through Claude Code's own MCP connection, which the agent's shell can't reach. On 2.1.312 that call didn't succeed in testing, so the socket claim (before any tool call, first 30 seconds) is what runs today. UNVERIFIED: whether a newer Claude Code allows the MCP route.
 - **Pattern-based scanners miss things.** Look-alike letters are folded and redacted; known formats or your own secret values written with spaces, dashes, reversed or in hex are blocked as evasion attempts. But a secret in a format nobody wrote a rule for, rephrased, or split across several messages still gets through. A random-looking string broken up with spaces is only flagged for you to check. Redaction is a safety net; your approval is the control. Keep auto-send for people you trust.

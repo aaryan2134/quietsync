@@ -1,8 +1,31 @@
 # Changelog
 
-Packages follow semver. The protocol version (v1) is separate and only changes through an RFC. Until 1.0, minor releases may add optional protocol fields; receivers ignore what they don't know.
+Packages follow semver. The protocol version (v1) is separate and only changes through an RFC.
 
 ## Unreleased
+
+## 1.0.0 - 2026-11-21
+
+- First stable package release, preserving protocol v1 from the release candidates.
+
+- Auto sends now hold while words from any other peer are in the turn. The session used to remember only the peer who spoke last, so a third peer's text followed by a message from bob could get an automatic send to bob through. Peers are tracked by key, not by display name.
+- Live-link auto-send gets the same checks as messages that wait: more than 40 lines of code or 4,000 characters opens the dialog.
+- `quietsync_messages` waits for the safety hooks like `quietsync_inbox` does, so a session whose hooks never ran doesn't hand peer text to the agent.
+- Only quietsync's own MCP server names (`plugin_quietsync_quietsync`, `quietsync`) count as quietsync tools. A server named like `evil-quietsync` no longer gets quietsync's allow during peer turns.
+- More env-style files are protected: `*.env`, `.envrc`, `.dev.vars` and `/proc/*/environ`.
+- The scanner catches secrets behind an underscore (`DB_PASSWORD=`, `GITHUB_TOKEN=`, `AWS_SECRET_ACCESS_KEY=`) and passwords in URLs with no user (`redis://:pw@host`).
+- An automatic record holds when the scanner warns about anything; posting it by hand still works.
+- Two contacts with the same name now differ by two fingerprint groups (`bob~ABCD-EFGH`), not one, so a matching suffix can't be ground out in seconds.
+- Dialogs say "words from bob are in this turn" instead of "a message from bob started this turn", which was wrong when the human asked the agent to read the message.
+- `quietsync setup --no-plugins` no longer says it touched the plugin cache.
+- A bridge test that needs about 5 seconds got a longer timeout, so `bun test` passes on slower Macs.
+- Comparison page covers Concord MCP, Agent Relay, claude-share, Zed Delta, hermesh and Passnote.
+- Live-link sends now share the persistent hourly auto-send cap used by queued messages and answers.
+- Every search in a peer-driven turn asks first, and any search while a peer is involved holds subsequent automatic sends.
+- Programmatic UI-band prompts can no longer masquerade as typed human prompts; an explicit Continue click has a separate trusted marker.
+- Fixed all source-level CodeQL findings: bounded secret and email parsing, generic organization-status output, and generated bundles excluded from duplicate analysis.
+- Relay acknowledgements now ignore unknown envelope IDs, preventing unthrottled growth of acknowledgement state.
+- Recorded a fresh independent Codex review of the 1.0 security-sensitive changes, including relay and cryptography scope; this remains an AI review, not an external human audit.
 
 ## 0.4.0-rc.4 - 2026-11-18
 

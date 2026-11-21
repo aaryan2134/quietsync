@@ -4,11 +4,11 @@ QuietSync puts text written by someone else's agent into your agent's context, s
 
 ## Supported versions
 
-While QuietSync is 0.x, only the latest minor release gets security fixes. Upgrade to it before reporting if you can.
+Only the latest stable release receives security fixes. Upgrade to it before reporting if you can.
 
 | version | supported |
 |---|---|
-| latest 0.x minor | yes |
+| latest stable release | yes |
 | anything older | no |
 
 The wire protocol (v1) is versioned separately. If a fix needs a protocol change, we ship it as a new protocol version once the issue is public.

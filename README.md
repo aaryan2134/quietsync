@@ -1,6 +1,6 @@
 # QuietSync
 
-Your team's agents talk to each other, so you don't have to.
+Ask a teammate's Claude instead of interrupting the teammate.
 
 ![Bob's Claude asks Dana, the PM, about refunds while she's offline. Later Dana's Claude drafts the answer from her spec, she approves it, and Bob presses Continue so his Claude finishes the work.](docs/media/quietsync-demo.gif)
 
@@ -27,7 +27,7 @@ Works with Claude Code today. The core is agent-agnostic; adapters for Codex, Ge
 
 For a private trial in Codex, Gemini CLI or OpenCode, see the [experimental messages-only MCP configurations](docs/client-trial.md). They use browser approval for sends and do not provide Claude Code's live links, UI band or hooks over the host's other tools.
 
-> **Before you use it:** QuietSync lowers the risk of letting another person's agent talk to yours; it doesn't remove it. Unless you raise someone's mode, you approve every message that leaves, so read the dialog. Peer text is untrusted. It's early (0.x) and unaudited, so don't use it for regulated or high-stakes data. Read [docs/safety.md](docs/safety.md) first.
+> **Before you use it:** QuietSync lowers the risk of letting another person's agent talk to yours; it doesn't remove it. Unless you raise someone's mode, you approve every message that leaves, so read the dialog. Peer text is untrusted. It has independent AI review but no external human security audit, so don't use it for regulated or high-stakes data. Read [docs/safety.md](docs/safety.md) first.
 
 ```
  alice's machine                     relay                         bob's machine
@@ -85,7 +85,7 @@ People on different relays can still pair and talk.
 - **contact book:** `quietsync contact priya --role "eng manager" --note "scope, priorities, hiring"` tells your Claude who to ask about what. Only you can set it.
 - **receipts:** queued, delivered (their QuietSync stored it), seen (their human looked), answered. Profiles with receipts off still send "delivered", never "seen".
 - **answers come back to the project that asked**, even if that session has ended. Continue hands the answer to Claude as information from that person, not instructions. It runs as your turn when you could read the whole answer on the band; a longer one, or one that trips the injection checks, runs at peer privilege.
-- **records:** `quietsync records add eng-decisions slack --url <webhook>` (also Jira comments, email drafts, a webhook or a folder). Post a thread when you ask, or mark a destination `--auto` to post every answered question. Secrets block the post, and Slack mentions or Jira markup in someone's text are neutralised.
+- **records:** `quietsync records add eng-decisions slack --url <webhook>` (also Jira comments, email drafts, a webhook or a folder). Post a thread when you ask, or mark a destination `--auto` to post every answered question. Secrets block the post, anything the scanner warns about holds an automatic one for you to post by hand, and Slack mentions or Jira markup in someone's text are neutralised.
 
 ## Profiles for three kinds of groups
 
@@ -122,6 +122,7 @@ Full threat model: [docs/security.md](docs/security.md).
 - **teams:** joins are admitted by the team key with its own clock, handles stay unique, revocations stick.
 - **org plans:** on Claude Team or Enterprise, only colleagues; team admins and IT can lock features off for everyone.
 - **audit:** everything in and out is logged under `~/.quietsync/audit/`.
+- **network:** the plugin connects only to the relay you set up (`wss://`), to record destinations you add yourself (Slack or other webhooks, Jira, all https), and to a company journal collector if IT configures one. The bridge and the band talk over a local socket. No telemetry.
 
 ## Performance
 
@@ -161,7 +162,7 @@ Issues and PRs welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md); bigger ch
 
 ## Status
 
-0.4 release candidate, early. Works end to end on Claude Code (tested on 2.1.312, macOS); see the [test report](docs/test-report.md). Windows support is experimental and untested, Linux desktop behavior is untested, and there has been no external human security audit. Known gaps are listed in [docs/security.md](docs/security.md#known-limits).
+1.0 initial release. Works end to end on Claude Code (tested on 2.1.312, macOS); see the [test report](docs/test-report.md). Windows support is experimental and untested, Linux desktop behavior is untested, and there has been no external human security audit. Known gaps are listed in [docs/security.md](docs/security.md#known-limits).
 
 ## License
 

@@ -23,13 +23,13 @@ Raising a mode asks you to type a confirmation at your own terminal. Your agent 
 
 ### The checks before anything goes on its own
 
-In `auto` and `trusted`, a message or answer still opens the usual dialog when any of these is true:
+In `auto` and `trusted`, a message, an answer or a live-link send still opens the usual dialog when any of these is true:
 
 - the scanner found something: a secret it redacted, a flagged term, a custom rule
-- a message from someone else started this turn (so carol's message can't make your agent write to priya on its own)
+- words from anyone else are in this turn, even if the person you're writing to spoke last (so carol's message can't make your agent write to priya on its own)
 - your agent read a sensitive file (`.env`, keys, shell history, its own settings) since you last typed
 - it carries more than 40 lines of code, or is longer than 4,000 characters
-- this person already got your auto-send limit's worth of messages in the last hour (10 by default, 5 on the company profile)
+- this person already got your auto-send limit's worth of automatic sends in the last hour (10 by default, 5 on the company profile); live links also stop after that many sends in a row without you
 
 The dialog says which check held it.
 

@@ -64,6 +64,10 @@ import { stalePending,
   type LinkView,
   type Policy,
   type SessionView,
+  AgentNode,
+  contactLabel,
+  postRecord,
+  quietsyncTool,
 } from '../src/index.ts'
 
 describe('bytes', () => {
@@ -525,7 +529,7 @@ describe('tool gate', () => {
     expect(decideToolUse(view(), T('message'), { to: 'bob', subject: 's', text: 't' }, ctx({ role: 'listener', caps: ROLES.listener })).decision).toBe('deny')
     expect(decideToolUse(view({ profile: { ...view().profile, messages: false } }), T('message'), { to: 'bob', subject: 's', text: 't' }, ctx()).decision).toBe('deny')
     const tainted = decideToolUse(view({ tainted: { by: 'mallory', linkId: 'L9', at: 0 } }), T('message'), { to: 'bob', subject: 's', text: 't' }, ctx())
-    expect((tainted as any).reason).toContain('mallory started this turn')
+    expect((tainted as any).reason).toContain('words from mallory are in this turn')
     const note = { key: 'in:bob:q1', id: 'q1', dir: 'in', kind: 'ask', peer, subject: 'port', text: 'which?', flags: [], at: 0, state: 'seen', stateAt: 0, session: { id: 's', label: 'l' } } as any
     const withNote = (n: any) => ({ ...ctx(), lookup: (ref: string) => ctx().lookup(ref === peer.id ? 'bob' : ref), note: (r: string) => (r === 'q1' ? n : null), record: (r: string, dest: string) => (r === 'q1' && dest === 'eng' ? { type: 'slack', text: 'thread text', sha: 'abc' } : r === 'q1' && dest === 'jira' ? { type: 'jira', text: 't', sha: 'def', ticket: 'SEC-1', ticketBy: 'them' as const } : `no record destination "${dest}"`) })
     const r = decideToolUse(view(), T('reply'), { message_id: 'q1', text: '8443' }, withNote(note))
@@ -867,7 +871,7 @@ describe('review round 2 regressions', () => {
     expect(decideToolUse(tainted, 'Grep', { pattern: 'priv', path: homedir() }, ctx).decision).toBe('deny')
     expect(decideToolUse(tainted, 'Grep', { pattern: 'x', path: '~/.aws' }, ctx).decision).toBe('deny')
     expect(decideToolUse(base(), 'Glob', { pattern: '**/id_rsa*' }, ctx).decision).toBe('ask')
-    expect(decideToolUse(tainted, 'Grep', { pattern: 'TODO', path: '/repo/src' }, ctx).decision).toBe('none')
+    expect(decideToolUse(tainted, 'Grep', { pattern: 'TODO', path: '/repo/src' }, ctx).decision).toBe('ask')
     expect(decideToolUse(tainted, 'Grep', { pattern: 'TODO', path: '/etc' }, ctx).decision).toBe('ask')
   })
 
@@ -1174,5 +1178,159 @@ describe('keys in the OS keychain', () => {
     } finally {
       setKeyStore(undefined)
     }
+  })
+})
+
+describe('review 2026-11-21 regressions', () => {
+  const bob = { id: 'KB', name: 'bob', rel: 'team' as const, fingerprint: 'BBBB-BBBB-BBBB-BBBB', label: 'bob' }
+  const link = (over: Partial<LinkView> = {}): LinkView => ({
+    id: 'L1',
+    peer: bob,
+    peerSession: { id: 's', label: 'repo', agent: 'claude-code', device: 'mac' },
+    topic: 'port',
+    topicFlags: [],
+    direction: 'out',
+    caps: ROLES.peer,
+    peerCaps: { send: true, receive: true },
+    role: 'peer',
+    send: 'auto',
+    allowSecrets: false,
+    isolation: 'standard',
+    secrets: 'redact',
+    autoSendLimit: 5,
+    autoStreak: 0,
+    createdAt: 0,
+    lastActivity: 0,
+    sent: 0,
+    received: 0,
+    acked: 0,
+    ...over,
+  })
+  const view = (over: Partial<SessionView> = {}): SessionView => ({
+    session: { id: 'me', label: 'my-repo', agent: 'claude-code', device: 'mac' },
+    identity: { name: 'alice', fingerprint: 'XXXX' },
+    relay: { url: 'ws://x', connected: true },
+    links: [link()],
+    incoming: [],
+    outgoing: [],
+    tainted: null,
+    isolation: null,
+    paused: false,
+    mode: null,
+    maxLinks: 8,
+    policyChanged: false,
+    profile: { name: 'default', org: null, orgOnly: false, external: true, requireVerified: false, autoSend: true, autoAccept: true, files: true, messages: true, records: true },
+    delivery: 'hooks',
+    pending: 0,
+    ...over,
+  })
+  const ctx = (): GateContext => ({
+    cwd: '/repo',
+    home: `${homedir()}/.quietsync`,
+    paths: pathGuard({ home: `${homedir()}/.quietsync` }),
+    lookup: () => null,
+    outbound: (_t, text) => prepareOutbound(text, { mode: 'redact', maxChars: 20000 }),
+  })
+  const send = (v: SessionView, text = 'ok') => decideToolUse(v, 'mcp__plugin_quietsync_quietsync__quietsync_send', { link_id: 'L1', text }, ctx()).decision
+
+  test("auto-send to bob holds while another peer's words are in the turn, even when bob spoke last", () => {
+    expect(send(view())).toBe('allow')
+    expect(send(view({ tainted: { by: 'bob', linkId: 'L1', at: 0, ids: ['KB'] } }))).toBe('allow')
+    expect(send(view({ tainted: { by: 'bob', linkId: 'L1', at: 0, ids: ['KM', 'KB'] } }))).toBe('ask')
+    // a taint quietsync couldn't tie to a key never counts as bob's
+    expect(send(view({ tainted: { by: 'bob', linkId: 'L1', at: 0 } }))).toBe('ask')
+  })
+
+  test('the node keeps every peer whose words entered the turn until the human takes over', () => {
+    const node: any = Object.create(AgentNode.prototype)
+    Object.assign(node, {
+      notices: [
+        { id: 1, kind: 'message', linkId: 'LM', text: 'm', at: 0, delivered: false, taint: { by: 'mallory', id: 'KM', linkId: 'LM', isolation: 'strict' } },
+        { id: 2, kind: 'message', linkId: 'L1', text: 'b', at: 0, delivered: false, taint: { by: 'bob', id: 'KB', linkId: 'L1', isolation: 'standard' } },
+      ],
+      links: new Map(),
+      peerWakes: 0,
+      tainted: null,
+      exposure: null,
+      session: { id: 's' },
+      store: { audit() {} },
+    })
+    node.takeNotices()
+    expect(node.tainted.by).toBe('bob')
+    expect(node.tainted.ids.sort()).toEqual(['KB', 'KM'])
+    expect(node.tainted.isolation).toBe('strict')
+    expect(send(view({ tainted: node.tainted }))).toBe('ask')
+    node.clearTaint()
+    expect(node.tainted).toBeNull()
+  })
+
+  test('live-link auto-send gets the same size and code checks as messages', () => {
+    const code = '```\n' + 'const x = 1\n'.repeat(60) + '```'
+    expect(send(view(), code)).toBe('ask')
+    expect(send(view(), 'x'.repeat(4500))).toBe('ask')
+    expect(send(view(), 'port 7431')).toBe('allow')
+    expect(decideToolUse(view(), 'mcp__plugin_quietsync_quietsync__quietsync_send', { link_id: 'L1', text: 'port 7431' }, { ...ctx(), autoSent: () => 5 }).decision).toBe('ask')
+  })
+
+  test("only quietsync's own server names count as quietsync tools", () => {
+    expect(quietsyncTool('mcp__plugin_quietsync_quietsync__quietsync_send')).toBe('send')
+    expect(quietsyncTool('mcp__quietsync__quietsync_messages')).toBe('messages')
+    expect(quietsyncTool('mcp__evil-quietsync-x__quietsync_run_shell')).toBeNull()
+    expect(quietsyncTool('mcp__plugin_evil_quietsync__quietsync_send')).toBeNull()
+    const peerTurn = view({ tainted: { by: 'bob', linkId: 'L1', at: 0, ids: ['KB'] }, isolation: 'standard' })
+    expect(decideToolUse(peerTurn, 'mcp__evil-quietsync-x__quietsync_run_shell', {}, ctx()).decision).toBe('ask')
+  })
+
+  test('env-style files are protected, templates are not', () => {
+    const g = pathGuard({ home: `${homedir()}/.quietsync` })
+    for (const f of ['/repo/.envrc', '/repo/prod.env', '/repo/config/app.env', '/repo/.dev.vars', '/repo/.dev.vars.staging', '/proc/self/environ', '/proc/1234/environ']) {
+      expect(g.classify(f, '/repo')).toBe('sensitive')
+    }
+    expect(g.classify('/repo/.env.example', '/repo')).toBeNull()
+    expect(g.classify('/repo/src/env.ts', '/repo')).toBeNull()
+  })
+
+  test('secrets behind underscores and passwords in URLs without a user are caught', () => {
+    const examples = [
+      ['DB_', 'PASSWORD=', 'Xk9mQ2vL', '7pRtWz4'].join(''),
+      ['GITHUB_', 'TOKEN=', 'Zq8Lm3Np', '7Rt2Vx6Bc9'].join(''),
+      ['AWS_SECRET_', 'ACCESS_KEY=', 'wJalrXUtnFEM', 'IK7MDENGbPxRfiCY'].join(''),
+    ]
+    for (const t of examples) {
+      const o = prepareOutbound(t, { mode: 'redact', maxChars: 8000 })
+      expect(o.text).not.toContain(t.split('=')[1]!)
+    }
+    const url = prepareOutbound('redis://:Xk9mQ2vL7pRtWz4@cache.internal:6379', { mode: 'redact', maxChars: 8000 })
+    expect(url.findings.map(f => f.kind)).toContain('url with password')
+    expect(url.text).not.toContain('Xk9mQ2vL7pRtWz4')
+    expect(prepareOutbound('the token count is 12', { mode: 'redact', maxChars: 8000 }).findings).toEqual([])
+  })
+
+  test('a name clash shows two fingerprint groups, so a matching suffix is not cheap to grind', () => {
+    const c = (id: string) => ({ id, name: 'bob', rel: 'team', teams: [] }) as any
+    const all = { a: c('a'.repeat(43)), b: c('b'.repeat(43)) }
+    expect(contactLabel(all.a, all, {})).toMatch(/^bob~[A-Z0-9]{4}-[A-Z0-9]{4}$/)
+  })
+
+  test('an automatic record holds on a scanner warning; a human-posted one goes', async () => {
+    const posted: string[] = []
+    const fake = (async (_u: string, init: any) => (posted.push(String(init.body)), new Response('ok'))) as unknown as typeof fetch
+    const thread = { subject: 'db', ticketBy: 'me' as const, ask: { by: 'me', at: 0, text: 'where is the db?' }, answer: { by: 'bob', at: 0, text: 'it is on 10.0.4.12' } }
+    const auto = await postRecord('eng', { type: 'webhook', url: 'https://example.com/hook' }, thread, {}, { fetchImpl: fake, auto: true })
+    expect(auto.ok).toBe(false)
+    expect(posted.length).toBe(0)
+    const byHand = await postRecord('eng', { type: 'webhook', url: 'https://example.com/hook' }, thread, {}, { fetchImpl: fake })
+    expect(byHand.ok).toBe(true)
+  })
+
+  test('the hourly auto-send ledger includes live links and expires old entries', () => {
+    const store = new Store(mkdtempSync(join(tmpdir(), 'qs-auto-ledger-')))
+    store.recordAutoSend('bob', 1_000)
+    store.recordAutoSend('bob', 2_000)
+    store.recordAutoSend('alice', 2_000)
+    expect(store.autoSendCount('bob', 3_000)).toBe(2)
+    expect(store.autoSendCount('alice', 3_000)).toBe(1)
+    expect(store.autoSendCount('bob', 3_602_001)).toBe(0)
+    expect(pathGuard({ home: store.home }).classify(store.path('auto-sends.json'))).toBe('quietsync-secret')
   })
 })

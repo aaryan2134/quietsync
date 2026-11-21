@@ -13,6 +13,11 @@ export const DEFAULT_PROTECT = [
   '!**/.env.example',
   '!**/.env.sample',
   '!**/.env.template',
+  '**/*.env',
+  '**/.envrc',
+  '**/.dev.vars',
+  '**/.dev.vars.*',
+  '/proc/*/environ',
   '**/*.pem',
   '**/*.key',
   '**/*.p12',
@@ -82,7 +87,7 @@ export const AGENT_CONFIG = [
 
 // Keys and invites, plus anything holding peer text the human may not have
 // accepted yet (session state, audit log): the agent reads none of it.
-const QUIETSYNC_SECRET_FILES = new Set(['identity.json', 'invites.json', 'pending-pairs.json', 'claims.json', 'notes.json', 'records.json', 'rotations.json'])
+const QUIETSYNC_SECRET_FILES = new Set(['identity.json', 'invites.json', 'pending-pairs.json', 'claims.json', 'notes.json', 'records.json', 'rotations.json', 'auto-sends.json'])
 const QUIETSYNC_SECRET_DIRS = ['run', 'sessions', 'audit', 'logs', 'journal']
 
 const ci = process.platform === 'darwin' || process.platform === 'win32'

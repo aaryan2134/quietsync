@@ -62,7 +62,8 @@ export type SessionView = {
   links: LinkView[]
   incoming: RequestView[]
   outgoing: OutgoingView[]
-  tainted: { by: string; linkId: string; at: number; isolation?: Isolation } | null
+  // `ids` holds every peer whose words entered this turn; `by` is the latest, for display.
+  tainted: { by: string; linkId: string; at: number; isolation?: Isolation; ids?: string[] } | null
   // Someone else's message entered this session's context; gating stays on as if a link were open.
   exposure?: { by: string; isolation: Isolation; at: number } | null
   isolation: Isolation | null
@@ -104,7 +105,7 @@ export const READ_ONLY_TOOLS = new Set([
   'TaskGet',
 ])
 
-const QUIETSYNC_TOOL = /^mcp__(?:plugin_)?[\w-]*quietsync[\w-]*__quietsync_(\w+)$/
+const QUIETSYNC_TOOL = /^mcp__(?:plugin_quietsync_)?quietsync__quietsync_(\w+)$/
 
 export function quietsyncTool(toolName: string): string | null {
   return QUIETSYNC_TOOL.exec(toolName)?.[1] ?? null
@@ -205,7 +206,7 @@ function decideTool(view: SessionView, toolName: string, input: unknown, ctx: Ga
     }
     if (s.sensitive && tainted) return deny(`a message from ${by} is driving this turn, and this command touches ${s.sensitive}. Not allowed while a peer is involved.`)
     if (s.sensitive && linked) return ask(`quietsync: a link is open and this command touches ${s.sensitive}. Anything it prints could end up in a reply. Run it?`)
-    if (tainted && (iso !== 'relaxed' || s.egress)) return ask(`quietsync, peer turn (restricted): a message from ${by} started this turn, not you. Approve only if you want this to happen.`)
+    if (tainted && (iso !== 'relaxed' || s.egress)) return ask(`quietsync, peer turn (restricted): words from ${by} are in this turn. Approve only if you want this to happen.`)
     if (linked && (iso === 'strict' || s.egress)) return ask(`quietsync: a link is open${iso === 'strict' ? ' (strict isolation)' : ''} and this command can send data off your machine. Run it?`)
     return NONE
   }
@@ -240,6 +241,7 @@ function decideTool(view: SessionView, toolName: string, input: unknown, ctx: Ga
     if (tainted && iso !== 'relaxed' && !insideDir(search.root, ctx.cwd)) {
       return ask(`quietsync, peer turn (restricted): a message from ${by} is driving this turn and this searches outside the project. Allow?`)
     }
+    if (tainted) return ask(`quietsync, peer turn (restricted): words from ${by} are in this turn, and search results can include protected files even when the pattern looks safe. Allow this search?`)
   }
 
   const outside = toolPaths(toolName, input).some(p => !insideDir(p, ctx.cwd))
@@ -249,7 +251,7 @@ function decideTool(view: SessionView, toolName: string, input: unknown, ctx: Ga
       return done(iso === 'strict' && outside ? ask(`quietsync, peer turn (restricted): a message from ${by} is driving this turn and this reads outside the project. Allow?`) : NONE)
     }
     if (iso === 'relaxed' && !egressTool(toolName)) return done(NONE)
-    return done(ask(`quietsync, peer turn (restricted): a message from ${by} started this turn, not you. Approve only if you want this to happen.`))
+    return done(ask(`quietsync, peer turn (restricted): words from ${by} are in this turn. Approve only if you want this to happen.`))
   }
   if (linked) {
     if (iso === 'strict' && !READ_ONLY_TOOLS.has(toolName)) return done(ask('quietsync: a link is open with strict isolation, so tools other than reading files ask first.'))
@@ -268,14 +270,32 @@ function insideDir(p: string, dir: string): boolean {
   return abs === d || abs.startsWith(`${d}/`)
 }
 
-// Why a send that could go on its own needs a person after all, or null when it can go.
-function holdAuto(o: Outbound, view: SessionView, peer: PeerView, policy: Policy, ctx: GateContext): string | null {
+// True when words from anyone other than these peers entered this turn. A source
+// quietsync couldn't tie to a key never matches, so it always holds.
+function othersInTurn(view: SessionView, ids: string[]): boolean {
+  if (!view.tainted) return false
+  return (view.tainted.ids ?? [`?${view.tainted.by}`]).some(id => !ids.includes(id))
+}
+
+function inTurnLine(view: SessionView): string[] {
+  return view.tainted ? [`! words from ${view.tainted.by} are in this turn: check this is what you want to send`] : []
+}
+
+// Why an automatic send needs a person after all, or null when its content can go.
+function holdContent(o: Outbound, view: SessionView, peers: PeerView[], ctx: GateContext): string | null {
   if (o.findings.length) return 'the scanner flagged something'
-  if (view.tainted && view.tainted.by !== peer.label) return `a message from ${view.tainted.by} started this turn`
+  if (othersInTurn(view, peers.map(p => p.id))) return 'words from someone else are in this turn'
   if (ctx.sensitiveSeen) return 'your agent read a sensitive file since you last typed'
   const code = (o.text.match(/```[\s\S]*?```/g) ?? []).reduce((n, b) => n + b.split('\n').length, 0)
   if (code > 40) return 'it carries a lot of code'
   if (o.text.length > 4000) return "it's long"
+  return null
+}
+
+// Why a send that could go on its own needs a person after all, or null when it can go.
+function holdAuto(o: Outbound, view: SessionView, peer: PeerView, policy: Policy, ctx: GateContext): string | null {
+  const held = holdContent(o, view, [peer], ctx)
+  if (held) return held
   const sent = ctx.autoSent?.(peer.id) ?? 0
   if (sent >= policy.autoSendLimit) return `${sent} messages to ${peer.label} already went without asking in the last hour`
   return null
@@ -338,18 +358,17 @@ function decideQuietSync(view: SessionView, short: string, input: unknown, ctx: 
       const auto = targets.every(l => l.send === 'auto')
       const streak = Math.max(...targets.map(l => l.autoStreak))
       const limit = Math.min(...targets.map(l => l.autoSendLimit))
-      const otherPeer = !!view.tainted && !targets.some(l => l.peer.label === view.tainted!.by)
-      if (auto && streak < limit && !o.findings.length && !otherPeer && !ctx.sensitiveSeen) return allow('quietsync: auto-send is on for this link')
+      const hourly = auto ? targets.map(l => ({ link: l, sent: ctx.autoSent?.(l.peer.id) ?? 0 })).find(x => x.sent >= x.link.autoSendLimit) : undefined
+      const held = auto
+        ? holdContent(o, view, targets.map(l => l.peer), ctx) ?? (hourly ? `${hourly.sent} messages to ${hourly.link.peer.label} already went without asking in the last hour` : null)
+        : null
+      if (auto && streak < limit && !held) return allow('quietsync: auto-send is on for this link')
       const head = targets.length > 1 ? `quietsync: send to ${targets.length} people in group ${id}: ${targets.map(l => l.peer.label).join(', ')}` : `quietsync: send to ${who(targets[0]!.peer)}`
       const why = !auto
         ? 'you approve every send'
         : streak >= limit
           ? `auto-send paused: ${streak} sends in a row without you`
-          : otherPeer
-            ? `auto-send held: a message from ${view.tainted!.by} started this turn`
-            : ctx.sensitiveSeen
-              ? 'auto-send held: your agent read a sensitive file since you last typed'
-              : 'auto-send held because the scanner flagged something'
+          : `auto-send held: ${held}`
       return ask(
         [
           head,
@@ -395,7 +414,7 @@ function decideQuietSync(view: SessionView, short: string, input: unknown, ctx: 
             ...f.notes.map(n => `! ${n}`),
             ...(warnings.length ? [`! check before approving: ${warnings.map(w => w.kind).join(', ')}`] : []),
             ...(cls === 'peer-content' ? ['! this is a file someone else sent you'] : []),
-            ...(view.tainted ? [`! a message from ${view.tainted.by} started this turn, not you`] : []),
+            ...inTurnLine(view),
             ...(o ? findingLines(o) : []),
             ...(o ? [body('note sent with it', o.text)] : []),
           ].join('\n'),
@@ -433,7 +452,7 @@ function decideQuietSync(view: SessionView, short: string, input: unknown, ctx: 
           `it waits at the relay if they're offline (up to 7 days); you'll see when it's delivered${question ? ', seen and answered' : ' and seen'}`,
           `subject: "${subject.text}"${ticket ? `, ticket ${ticket}` : ''}`,
           `they'll see your name and this session's label "${view.session.label}"`,
-          ...(view.tainted ? [`! a message from ${view.tainted.by} started this turn, not you`] : []),
+          ...inTurnLine(view),
           ...findingLines(o),
           ...(ctx.touches?.length ? [`your agent looked at: ${ctx.touches.slice(-6).join(', ')}${ctx.touches.length > 6 ? ` (+${ctx.touches.length - 6} more)` : ''}`] : []),
           body('message', o.text),
@@ -462,7 +481,7 @@ function decideQuietSync(view: SessionView, short: string, input: unknown, ctx: 
           `quietsync: answer ${who(n.peer)}`,
           flowLine(hit.policy, 'answer', held),
           `their question: ${shownSubject(n)}${n.ticket ? `, ticket ${n.ticket}` : ''}`,
-          ...(view.tainted ? [`! a message from ${view.tainted.by} started this turn, not you`] : []),
+          ...inTurnLine(view),
           ...findingLines(o),
           ...(ctx.touches?.length ? [`your agent looked at: ${ctx.touches.slice(-6).join(', ')}${ctx.touches.length > 6 ? ` (+${ctx.touches.length - 6} more)` : ''}`] : []),
           body('answer', o.text),
@@ -479,7 +498,7 @@ function decideQuietSync(view: SessionView, short: string, input: unknown, ctx: 
             `quietsync: post a copy of this thread to "${str(input, 'to')}" (${r.type})`,
             'this goes to a third place, outside the two of you. Secrets in it block the post.',
             ...(r.type === 'jira' && r.ticket ? [`${r.ticketBy === 'them' ? '! ' : ''}comments on ${r.ticket}${r.ticketBy === 'them' ? ', a ticket the other person chose' : ''}`] : []),
-            ...(view.tainted ? [`! a message from ${view.tainted.by} started this turn, not you`] : []),
+            ...inTurnLine(view),
             body('record', r.text),
           ].join('\n'),
         ),

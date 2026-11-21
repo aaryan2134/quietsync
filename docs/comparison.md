@@ -21,8 +21,21 @@ Slack is turning into an agent workspace, with agents that summarize, prepare me
 | secret leak prevention | ~40 formats, env values, own keys, custom rules, redaction | none | none | scrubs exports only | none | not specified |
 | audit | local, per turn and per tool, privacy levels | local history | server metadata | Git archive of all messages | transcripts | per deployment |
 | org controls | org-plan lock, signed team profiles, managed policy, relay allowlist | none | team authority | contact policies, overseer UI | managed deny rules | per deployment |
-| maturity | 0.x, Claude Code only, no audit | young, 6 agent CLIs | active, federated | popular, Python version in maintenance | product feature | v1.0 standard |
+| maturity | 1.0, Claude Code only, no human audit | young, 6 agent CLIs | active, federated | popular, Python version in maintenance | product feature | v1.0 standard |
 | license | Apache-2.0 | MIT | MIT | MIT with a rider on AI vendors | proprietary | Apache-2.0 |
+
+## Newer projects (November 2026)
+
+These appeared or grew after the table above was written. Descriptions come from each project's own README or announcement; corrections welcome.
+
+| project | what it does | how it differs from QuietSync |
+|---|---|---|
+| [Concord MCP](https://github.com/Get-Concord-AI/concord-mcp) (MIT) | live messaging and coordination for coding agents across harnesses, local-first, through one MCP server | coordination features QuietSync doesn't have: claiming files, spotting overlapping work, handoffs |
+| [Agent Relay](https://github.com/agentworkforce/relay) (Apache-2.0) | team infrastructure for coding agents: channels, threads and DMs across machines, tools as a virtual filesystem, shared session history | a broader workspace platform; QuietSync only does person-to-person messaging with per-message approval |
+| [claude-share](https://github.com/Paradigm-Study/claude-share) (MIT) | one Claude Code session shared by link; a teammate's prompts run on the host's machine | a shared session, not two agents each with its own person's context and permissions |
+| [Zed Delta](https://delta.dev/blog/claude-code-multiplayer) | multiplayer Claude Code (`/delta share`, `/delta join`), in beta since October 2026 | same shared-session model as claude-share |
+| [hermesh](https://github.com/hermeshai/hermesh) (Apache-2.0) | an always-on assistant that routes tasks across many agent CLIs and machines; end to end encrypted and self-hostable | built around one person's assistant delegating work; QuietSync is built around two people and their consent |
+| [Passnote](https://github.com/ziangni-sys/claude-passnote) (MIT) | a small mailbox for Claude Code agents on different computers: a Python server with SQLite, HTTPS and a bearer token, opt-in per session | no end-to-end layer or per-message approval described in its README |
 
 ## Where QuietSync is stronger
 
@@ -36,10 +49,10 @@ Slack is turning into an agent workspace, with agents that summarize, prepare me
 ## Where others are stronger
 
 - **Forward secrecy depth.** agent-talk's Olm sessions do a Diffie-Hellman ratchet on every round trip, so they recover after a key compromise. QuietSync's per-link keys and per-message ratchet protect past messages, but not future ones after a live compromise, and the first message on a link (shown to the other human before they accept) is protected only by the recipient's long-term key.
-- **Maturity and reach.** A2A is a 1.0 standard; agent-talk supports six agent CLIs; aweb federates. QuietSync is 0.x, Claude Code only and tested live only on macOS. It has a [recorded independent Codex review](security-review-2026-11-18.md), but no external human security audit.
+- **Maturity and reach.** A2A is a 1.0 standard; agent-talk supports six agent CLIs; aweb federates. QuietSync 1.0 is Claude Code only and tested live only on macOS. It has a [recorded independent Codex review](security-review-2026-11-21.md), but no external human security audit.
 - **Coordination features.** Agent Mail has file leases, aweb has tasks and presence, agent teams share a task list. QuietSync only does messaging.
 - **Unattended use.** If you want agents to work through the night without a person, approval on every send is friction. QuietSync allows auto-send, but caps it on purpose.
-- **Identity.** aweb's DNS-rooted identities support rotation. QuietSync copies keys between your own devices and has no rotation yet ([ROADMAP.md](../ROADMAP.md)).
+- **Identity.** aweb's DNS-rooted identities do not require copying one identity key between devices. QuietSync supports signed identity-key rotation after a lost device, but a person's own devices still share one identity; per-device keys are on the [roadmap](../ROADMAP.md).
 
 ## Also in this space
 

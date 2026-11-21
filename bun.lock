@@ -11,7 +11,7 @@
     },
     "packages/cli": {
       "name": "quietsync",
-      "version": "0.4.0-rc.4",
+      "version": "1.0.0",
       "bin": {
         "quietsync": "dist/quietsync.mjs",
       },
@@ -23,7 +23,7 @@
     },
     "packages/core": {
       "name": "@quietsync/core",
-      "version": "0.4.0-rc.4",
+      "version": "1.0.0",
       "dependencies": {
         "@noble/ciphers": "^2.4.0",
         "@noble/curves": "^2.4.0",
@@ -33,7 +33,7 @@
     },
     "packages/relay": {
       "name": "@quietsync/relay",
-      "version": "0.4.0-rc.4",
+      "version": "1.0.0",
       "dependencies": {
         "@quietsync/core": "workspace:*",
       },

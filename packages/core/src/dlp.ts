@@ -53,10 +53,10 @@ const RULES: Rule[] = [
   { kind: 'quietsync invite code', re: /\bqs1_[A-Za-z0-9_-]{40,}/g },
   { kind: 'jwt', re: /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g },
   { kind: 'auth header', re: /\bauthorization\s*:\s*(?:bearer|basic|token)\s+[A-Za-z0-9._~+/=-]{16,}/gi },
-  { kind: 'url with password', re: /\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@]+:[^\s@/]{3,}@[^\s]+/gi },
+  { kind: 'url with password', re: /\b[a-z][a-z0-9+.-]*:\/\/[^\s:/@]*:[^\s@/]{3,}@[^\s]+/gi },
   {
     kind: 'generic secret',
-    re: /\b(?:api[_-]?key|secret(?:[_-]?key)?|client[_-]?secret|token|passw(?:or)?d|pwd|access[_-]?key|auth[_-]?key|private[_-]?key)\b["']?\s*[:=]\s*["']?[A-Za-z0-9_\-/+=.!@#$%^&*]{12,}["']?/gi,
+    re: /(?<![a-z0-9])(?:api[_-]?key|secret(?:[_-]?key)?|client[_-]?secret|token|passw(?:or)?d|pwd|access[_-]?key|auth[_-]?key|private[_-]?key)\b["']?\s*[:=]\s*["']?[A-Za-z0-9_\-/+=.!@#$%^&*]{12,}["']?/gi,
   },
   { kind: 'card number', re: /\b(?:\d[ -]?){13,19}\b/g, check: luhn },
   { kind: 'private address', re: /\b(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b/g, severity: 'warn' },
@@ -107,7 +107,10 @@ export function preview(match: string): string {
 }
 
 function b64(s: string): string {
-  return Buffer.from(s, 'utf8').toString('base64').replace(/=+$/, '')
+  const encoded = Buffer.from(s, 'utf8').toString('base64')
+  let end = encoded.length
+  while (end > 0 && encoded[end - 1] === '=') end--
+  return encoded.slice(0, end)
 }
 
 // A secret value can show up raw, URL-encoded, or base64'd at any byte offset.
