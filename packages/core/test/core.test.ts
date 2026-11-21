@@ -1283,7 +1283,9 @@ describe('review 2026-11-21 regressions', () => {
 
   test('env-style files are protected, templates are not', () => {
     const g = pathGuard({ home: `${homedir()}/.quietsync` })
-    for (const f of ['/repo/.envrc', '/repo/prod.env', '/repo/config/app.env', '/repo/.dev.vars', '/repo/.dev.vars.staging', '/proc/self/environ', '/proc/1234/environ']) {
+    const files = ['/repo/.envrc', '/repo/prod.env', '/repo/config/app.env', '/repo/.dev.vars', '/repo/.dev.vars.staging']
+    if (process.platform !== 'win32') files.push('/proc/self/environ', '/proc/1234/environ')
+    for (const f of files) {
       expect(g.classify(f, '/repo')).toBe('sensitive')
     }
     expect(g.classify('/repo/.env.example', '/repo')).toBeNull()
