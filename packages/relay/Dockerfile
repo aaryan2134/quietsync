@@ -1,4 +1,4 @@
-FROM oven/bun:1.4.4 AS build
+FROM oven/bun:1.4.5 AS build
 WORKDIR /app
 COPY package.json bun.lock .bun-version tsconfig.json ./
 COPY packages/cli/package.json packages/cli/package.json
@@ -8,7 +8,7 @@ RUN bun install --frozen-lockfile
 COPY . .
 RUN bun run build
 
-FROM oven/bun:1.4.4-alpine
+FROM oven/bun:1.4.5-alpine
 WORKDIR /app
 ARG QUIETSYNC_VERSION=dev
 ARG VCS_REF=unknown
